@@ -1,0 +1,20 @@
+# Unity
+game/Library/
+game/Temp/
+game/Logs/
+game/UserSettings/
+game/obj/
+game/.vs/
+game/*.csproj
+game/*.sln
+game/ExportedObj/
+game/[Aa]ssets/[Ss]treamingAssets/aa.meta
+game/[Aa]ssets/[Ss]treamingAssets/aa/
+
+# Node
+rolld_backend/game/node_modules/
+rolld_backend/game/.env
+
+# OS
+.DS_Store
+Thumbs.db

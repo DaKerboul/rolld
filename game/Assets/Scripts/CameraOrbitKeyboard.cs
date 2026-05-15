@@ -3,53 +3,85 @@ using UnityEngine.InputSystem;
 using Unity.Cinemachine;
 
 /// <summary>
-/// Adds ZQSD (AZERTY) / WASD (QWERTY) keyboard orbit for the Cinemachine camera.
-/// Works in parallel with mouse orbit via CinemachineInputAxisController.
-/// Attach to the CinemachineCamera GameObject alongside CinemachineOrbitalFollow.
+/// Orbit camera via mouse delta direct (bypass CinemachineInputAxisController)
+/// + keyboard fallback. Right-click toggles cursor lock.
+/// Active uniquement quand le Player est actif (gameplay).
 /// </summary>
 public class CameraOrbitKeyboard : MonoBehaviour
 {
-    [Header("Orbit Speed (degrees/sec)")]
+    [Header("Keyboard Orbit Speed (deg/s)")]
     public float horizontalSpeed = 150f;
-    public float verticalSpeed = 80f;
+    public float verticalSpeed   = 80f;
 
-    private CinemachineOrbitalFollow _orbital;
+    [Header("Mouse Sensitivity (deg/px)")]
+    public float mouseSensitivity = 0.2f;
+
+    private CinemachineOrbitalFollow       _orbital;
     private CinemachineInputAxisController _axisController;
 
-    void Start()
+    void Awake()
     {
-        _orbital = GetComponent<CinemachineOrbitalFollow>();
+        _orbital        = GetComponent<CinemachineOrbitalFollow>();
         _axisController = GetComponent<CinemachineInputAxisController>();
-        if (_orbital == null)
-            Debug.LogWarning("[CameraOrbitKeyboard] CinemachineOrbitalFollow not found on this GameObject.");
+    }
+
+    void OnEnable()
+    {
+        // On gère la souris nous-mêmes
+        if (_axisController != null) _axisController.enabled = false;
+        LockCursor();
+    }
+
+    void OnDisable()
+    {
+        UnlockCursor();
+    }
+
+    void LockCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible   = false;
+    }
+
+    void UnlockCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible   = true;
     }
 
     void Update()
     {
         if (_orbital == null) return;
 
-        // Enforce cursor lock while this script is active (Player hierarchy is active = in gameplay)
-        if (Cursor.lockState != CursorLockMode.Locked)
+        var mouse = Mouse.current;
+
+        // Clic droit = toggle lock
+        if (mouse != null && mouse.rightButton.wasPressedThisFrame)
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            if (Cursor.lockState == CursorLockMode.Locked)
+                UnlockCursor();
+            else
+                LockCursor();
         }
 
-        // Freeze camera orbit (keyboard + mouse) when keybind menu is open
-        if (KeyBindingUI.IsVisible)
+        if (KeyBindingUI.IsVisible) return;
+
+        // Souris — seulement quand locked (delta infini, sans accrochage au bord)
+        if (Cursor.lockState == CursorLockMode.Locked && mouse != null)
         {
-            if (_axisController != null && _axisController.enabled)
-                _axisController.enabled = false;
-            return;
+            Vector2 delta = mouse.delta.ReadValue();
+            _orbital.HorizontalAxis.Value += delta.x * mouseSensitivity;
+            _orbital.VerticalAxis.Value    = Mathf.Clamp(
+                _orbital.VerticalAxis.Value - delta.y * mouseSensitivity,
+                _orbital.VerticalAxis.Range.x,
+                _orbital.VerticalAxis.Range.y
+            );
         }
-        else if (_axisController != null && !_axisController.enabled)
-        {
-            _axisController.enabled = true;
-        }
+
+        // Clavier
         var kb = Keyboard.current;
         if (kb == null) return;
 
-        // Physical-key mapping: W/A/S/D positions = Z/Q/S/D on AZERTY
         Key kUp    = KeyBindingUI.GetKey("CamUp",    Key.W);
         Key kDown  = KeyBindingUI.GetKey("CamDown",  Key.S);
         Key kLeft  = KeyBindingUI.GetKey("CamLeft",  Key.A);
@@ -61,10 +93,10 @@ public class CameraOrbitKeyboard : MonoBehaviour
         if (kb[kUp].isPressed)    v += 1f;
         if (kb[kDown].isPressed)  v -= 1f;
 
-        if (Mathf.Abs(h) > 0.001f || Mathf.Abs(v) > 0.001f)
+        if (h != 0f || v != 0f)
         {
             _orbital.HorizontalAxis.Value += h * horizontalSpeed * Time.deltaTime;
-            _orbital.VerticalAxis.Value = Mathf.Clamp(
+            _orbital.VerticalAxis.Value    = Mathf.Clamp(
                 _orbital.VerticalAxis.Value + v * verticalSpeed * Time.deltaTime,
                 _orbital.VerticalAxis.Range.x,
                 _orbital.VerticalAxis.Range.y

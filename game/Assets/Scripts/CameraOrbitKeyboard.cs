@@ -27,6 +27,14 @@ public class CameraOrbitKeyboard : MonoBehaviour
     void Update()
     {
         if (_orbital == null) return;
+
+        // Enforce cursor lock while this script is active (Player hierarchy is active = in gameplay)
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+
         // Freeze camera orbit (keyboard + mouse) when keybind menu is open
         if (KeyBindingUI.IsVisible)
         {

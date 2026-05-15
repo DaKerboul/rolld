@@ -327,7 +327,7 @@ public class LobbyUI : MonoBehaviour
         if (_isConnecting && !NetworkManager.Instance.IsConnected)
         {
             _isConnecting = false;
-            _statusMessage = "Erreur : Timeout de connexion. Vérifiez que le serveur est lancé.";
+            _statusMessage = "Erreur : Impossible de joindre rolld.io. Réessayez dans quelques instants.";
             if (!string.IsNullOrEmpty(NetworkManager.Instance.LastError))
             {
                 _statusMessage += $"\n{NetworkManager.Instance.LastError}";

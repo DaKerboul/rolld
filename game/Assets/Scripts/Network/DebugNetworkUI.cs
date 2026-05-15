@@ -67,11 +67,11 @@ public class DebugNetworkUI : MonoBehaviour
             string name  = !string.IsNullOrEmpty(nm.LocalPlayerName) ? nm.LocalPlayerName : "\u2014";
             string room  = !string.IsNullOrEmpty(nm.RoomId) ? nm.RoomId[..Mathf.Min(8, nm.RoomId.Length)] : "\u2014";
             string sess  = !string.IsNullOrEmpty(nm.LocalSessionId) ? nm.LocalSessionId[..Mathf.Min(6, nm.LocalSessionId.Length)] : "\u2014";
-            info = $"  {dot} <b>{name}</b>  |  Room {room}  |  Sess {sess}  |  {nm.PlayerCount}P  |  {nm.serverURL}  |  {_currentFps:F0} FPS";
+            info = $"  {dot} <b>{name}</b>  |  Room {room}  |  Sess {sess}  |  {nm.PlayerCount}P  |  {"wss://rolld.io:2567"}  |  {_currentFps:F0} FPS";
         }
         else
         {
-            info = $"  {dot} {nm.ConnectionStatus}  |  {nm.serverURL}  |  {_currentFps:F0} FPS";
+            info = $"  {dot} {nm.ConnectionStatus}  |  {"wss://rolld.io:2567"}  |  {_currentFps:F0} FPS";
         }
 
         GUI.Label(new Rect(0, 0, Screen.width, h), info, ImGuiSkin.HudLabel);
@@ -93,7 +93,7 @@ public class DebugNetworkUI : MonoBehaviour
         GUIStyle statusStyle = nm.IsConnected ? ImGuiSkin.StatusGreen : ImGuiSkin.StatusRed;
         GUILayout.Label($"\u25CF {nm.ConnectionStatus}", statusStyle);
 
-        ImGuiSkin.DrawField("Server",  nm.serverURL);
+        ImGuiSkin.DrawField("Server",  "wss://rolld.io:2567");
         ImGuiSkin.DrawField("Room ID", string.IsNullOrEmpty(nm.RoomId) ? "\u2014" : nm.RoomId);
         ImGuiSkin.DrawField("Session", string.IsNullOrEmpty(nm.LocalSessionId) ? "\u2014" : nm.LocalSessionId);
         ImGuiSkin.DrawField("Players", nm.PlayerCount.ToString());

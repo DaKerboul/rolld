@@ -21,6 +21,12 @@ class Player extends Schema {
     this.avx = 0;
     this.avy = 0;
     this.avz = 0;
+    // Game state
+    this.isEliminated = false;
+    this.isQualified = false;
+    this.isReady = false;
+    this.team = 0;
+    this.checkpointIndex = 0;
   }
 }
 
@@ -43,17 +49,42 @@ defineTypes(Player, {
   avx: "float32",
   avy: "float32",
   avz: "float32",
+  isEliminated: "boolean",
+  isQualified: "boolean",
+  isReady: "boolean",
+  team: "int8",
+  checkpointIndex: "int8",
 });
 
 class GameState extends Schema {
   constructor() {
     super();
     this.players = new MapSchema();
+    this.phase = "lobby";
+    this.countdown = 0;
+    this.roundNumber = 1;
+    this.totalRounds = 3;
+    this.playersAlive = 0;
+    this.gameMode = "race";
+    this.deathZoneY = -50;
+    this.teamScoreRed = 0;
+    this.teamScoreBlue = 0;
+    this.winnerName = "";
   }
 }
 
 defineTypes(GameState, {
   players: { map: Player },
+  phase: "string",
+  countdown: "float32",
+  roundNumber: "int8",
+  totalRounds: "int8",
+  playersAlive: "int8",
+  gameMode: "string",
+  deathZoneY: "float32",
+  teamScoreRed: "int16",
+  teamScoreBlue: "int16",
+  winnerName: "string",
 });
 
 module.exports = { GameState, Player };

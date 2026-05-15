@@ -12,9 +12,7 @@ public class NetworkManager : MonoBehaviour
 {
     public static NetworkManager Instance { get; private set; }
 
-    [Header("Connection")]
-    [Tooltip("Colyseus server endpoint (overridden by frontend via SetServerURL)")]
-    public string serverURL = "ws://localhost:2567";
+    private const string serverURL = "wss://rolld.io:2567";
 
     [Header("Prefab")]
     [Tooltip("Prefab for remote players (must have RemotePlayerController)")]
@@ -92,13 +90,6 @@ public class NetworkManager : MonoBehaviour
             _broadcastTimer = 0f;
             BroadcastPosition();
         }
-    }
-
-    /// <summary>Called from frontend JS via SendMessage to override the server URL.</summary>
-    public void SetServerURL(string url)
-    {
-        serverURL = url;
-        Debug.Log($"[Network] Server URL set to: {url}");
     }
 
     public NetworkPlayer GetLocalPlayerState()

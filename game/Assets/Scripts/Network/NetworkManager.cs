@@ -12,7 +12,7 @@ public class NetworkManager : MonoBehaviour
 {
     public static NetworkManager Instance { get; private set; }
 
-    private const string serverURL = "wss://rolld.io:2567";
+    private const string serverURL = "wss://game.rolld.kerboul.me";
 
     [Header("Prefab")]
     [Tooltip("Prefab for remote players (must have RemotePlayerController)")]

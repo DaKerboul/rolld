@@ -20,6 +20,10 @@ public class GameHUD : MonoBehaviour
     private int _checkpointsCurrent = 0;
     private int _checkpointsTotal = 5;
 
+    // Local race state (activated when CP0 gate is crossed, independent of server phase)
+    private bool _localRaceActive = false;
+    private float _localRaceTimer = 0f;
+
     // Countdown animation
     private float _lastCountdownShown = -1f;
     private float _countdownPulse = 0f;
@@ -73,6 +77,8 @@ public class GameHUD : MonoBehaviour
     {
         if (_timerRunning)
             _roundTimer += Time.deltaTime;
+        if (_localRaceActive)
+            _localRaceTimer += Time.deltaTime;
 
         if (_countdown > 0f && _countdown != _lastCountdownShown)
         {
@@ -87,9 +93,15 @@ public class GameHUD : MonoBehaviour
     public void SetRoundInfo(int round, string mode) { _roundNumber = round; _gameMode = mode; }
     public void SetCheckpoint(int current, int total) { _checkpointsCurrent = current; _checkpointsTotal = total; }
 
+    public void SetLocalRaceActive(bool active)
+    {
+        _localRaceActive = active;
+        if (!active) _localRaceTimer = 0f;
+    }
+
     void OnGUI()
     {
-        if (_phase == "lobby") return;
+        if (_phase == "lobby" && !_localRaceActive) return;
 
         ImGuiSkin.EnsureReady();
         var nm = NetworkManager.Instance;
@@ -184,10 +196,11 @@ public class GameHUD : MonoBehaviour
         GUI.Label(new Rect(prX, panelY + 40f, 168f, 22f), "joueurs en jeu", aliveLabel);
 
         // ── Round timer (top center) ──────────────────────────────────────
-        if (_timerRunning)
+        float displayTimer = _timerRunning ? _roundTimer : (_localRaceActive ? _localRaceTimer : -1f);
+        if (displayTimer >= 0f)
         {
-            int mins = Mathf.FloorToInt(_roundTimer / 60f);
-            int secs = Mathf.FloorToInt(_roundTimer % 60f);
+            int mins = Mathf.FloorToInt(displayTimer / 60f);
+            int secs = Mathf.FloorToInt(displayTimer % 60f);
             var timerStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
@@ -200,7 +213,7 @@ public class GameHUD : MonoBehaviour
         }
 
         // ── Race: checkpoint progress (bottom center) ─────────────────────
-        if (_gameMode == "race" && _phase == "playing")
+        if (_gameMode == "race" && (_phase == "playing" || _localRaceActive))
         {
             float bw = 300f;
             float bx = (Screen.width - bw) / 2f;

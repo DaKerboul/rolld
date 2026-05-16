@@ -15,8 +15,14 @@ public class PlayerController : MonoBehaviour
 
     public float JumpForce = 5f; // Force applied when jumping
 
-    public float MovementSpeed = 5f; // Speed of player movement
+    public float MovementSpeed = 25f; // Speed of player movement
     public float BoostSpeed = 2f; // Multiplicateur de vitesse sur GelOrange
+
+    [Header("Steering Feel")]
+    [Tooltip("Damps velocity perpendicular to input — higher = sharper turns")]
+    public float turnDamping = 7f;
+    [Tooltip("Horizontal friction when no input is held")]
+    public float idleDrag = 3f;
 
     [Header("Bump Collision")]
     public float bumpForce = 4f; // Impulse force when bumping a remote player
@@ -261,21 +267,28 @@ public class PlayerController : MonoBehaviour
                 }
             }
 
-            if (isForwardHeld)
+            Vector3 inputDir = Vector3.zero;
+            if (isForwardHeld)  inputDir += forward;
+            if (isBackwardsHeld) inputDir -= forward;
+            if (isRightHeld)   inputDir += right;
+            if (isLeftHeld)    inputDir -= right;
+
+            if (inputDir.sqrMagnitude > 0.01f)
             {
-                rb.AddForce(forward * currentSpeed * Time.deltaTime, ForceMode.VelocityChange);
+                inputDir.Normalize();
+                rb.AddForce(inputDir * currentSpeed * Time.deltaTime, ForceMode.VelocityChange);
+
+                // Counter-force on the lateral component (makes turns sharper)
+                Vector3 horizVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                Vector3 perp = horizVel - Vector3.Project(horizVel, inputDir);
+                if (perp.sqrMagnitude > 0.01f)
+                    rb.AddForce(-perp * turnDamping * Time.deltaTime, ForceMode.VelocityChange);
             }
-            if (isBackwardsHeld)
+            else if (!isOnGelViolet)
             {
-                rb.AddForce(-forward * currentSpeed * Time.deltaTime, ForceMode.VelocityChange);
-            }
-            if (isLeftHeld)
-            {
-                rb.AddForce(-right * currentSpeed * Time.deltaTime, ForceMode.VelocityChange);
-            }
-            if (isRightHeld)
-            {
-                rb.AddForce(right * currentSpeed * Time.deltaTime, ForceMode.VelocityChange);
+                // Gradual horizontal slow-down when no key is held
+                Vector3 horizVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                rb.AddForce(-horizVel * idleDrag * Time.deltaTime, ForceMode.VelocityChange);
             }
 
             // GelViolet : colle la balle à la surface (sticky)

@@ -23,7 +23,10 @@ public class CheckpointSystem : MonoBehaviour
     [Tooltip("Material to apply to finish line")]
     public Material finishLineMaterial;
 
-    private int _localCheckpointIndex = 0;  // how many checkpoints this local player passed
+    public int LocalCheckpointIndex => _localCheckpointIndex;
+    public bool RaceStarted { get; private set; }
+
+    private int _localCheckpointIndex = 0;
     private Renderer[] _checkpointRenderers;
     private bool _finished = false;
 
@@ -38,9 +41,11 @@ public class CheckpointSystem : MonoBehaviour
         for (int i = 0; i < checkpoints.Length; i++)
         {
             _checkpointRenderers[i] = checkpoints[i].GetComponent<Renderer>();
-
-            // Tag checkpoints with their index for trigger identification
             checkpoints[i].gameObject.name = $"Checkpoint_{i}";
+
+            // Auto-assign index so trigger knows its position in the sequence
+            var trigger = checkpoints[i].GetComponent<CheckpointTrigger>();
+            if (trigger != null) trigger.checkpointIndex = i;
         }
 
         // Tell HUD total checkpoints
@@ -52,8 +57,14 @@ public class CheckpointSystem : MonoBehaviour
     public void OnLocalPlayerHitCheckpoint(int index)
     {
         if (_finished) return;
-        // Must hit checkpoints in order
         if (index != _localCheckpointIndex) return;
+
+        // CP0 = start gate: activate race HUD and start local timer
+        if (index == 0)
+        {
+            RaceStarted = true;
+            GameHUD.Instance?.SetLocalRaceActive(true);
+        }
 
         _localCheckpointIndex++;
         NetworkManager.Instance?.SendCheckpoint(_localCheckpointIndex);
@@ -81,7 +92,9 @@ public class CheckpointSystem : MonoBehaviour
     {
         _localCheckpointIndex = 0;
         _finished = false;
+        RaceStarted = false;
         UpdateCheckpointVisuals();
+        GameHUD.Instance?.SetLocalRaceActive(false);
     }
 
     private void UpdateCheckpointVisuals()

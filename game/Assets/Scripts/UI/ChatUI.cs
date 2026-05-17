@@ -135,6 +135,8 @@ public class ChatUI : MonoBehaviour
         _inputText = GUILayout.TextField(_inputText, 200, ImGuiSkin.TextField, GUILayout.Height(28f));
 
         bool canSend = !string.IsNullOrWhiteSpace(_inputText) && PlayerName.Length > 0;
+        if (PlayerName.Length == 0)
+            GUILayout.Label("Connectez-vous au jeu pour envoyer des messages.", ImGuiSkin.LabelDim);
         GUI.enabled = canSend;
         if (GUILayout.Button("Envoyer", ImGuiSkin.Button, GUILayout.Width(80f), GUILayout.Height(28f)))
             TrySend();
@@ -171,7 +173,15 @@ public class ChatUI : MonoBehaviour
 
     // ─── Send ────────────────────────────────────────────────────────────
 
-    private string PlayerName => NetworkManager.Instance?.LocalPlayerName ?? "";
+    private string PlayerName
+    {
+        get
+        {
+            var nm = NetworkManager.Instance?.LocalPlayerName;
+            if (!string.IsNullOrEmpty(nm)) return nm;
+            return PlayerPrefs.GetString("rolld_player_name", "");
+        }
+    }
 
     private void TrySend()
     {

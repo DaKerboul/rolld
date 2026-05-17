@@ -113,6 +113,7 @@ public class NetworkManager : MonoBehaviour
         LastError = "";
         LocalPlayerName = playerName;
         LocalPlayerColor = color;
+        PlayerPrefs.SetString("rolld_player_name", playerName);
 
         try
         {

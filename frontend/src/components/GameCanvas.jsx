@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 // Check if Unity build files exist
 const UNITY_BUILD_PATH = '/unity-build/Build'
 // Cache-busting version — update this after each Unity build
-const UNITY_BUILD_VERSION = '20260517'
+const UNITY_BUILD_VERSION = '20260517b'
 const BUILD_PREFIX = 'build_mai'
 const LOADER_URL = `${UNITY_BUILD_PATH}/${BUILD_PREFIX}.loader.js?v=${UNITY_BUILD_VERSION}`
 

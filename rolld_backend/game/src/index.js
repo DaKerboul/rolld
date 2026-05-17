@@ -91,9 +91,8 @@ const gameServer = new Server({
 
 _gameServer = gameServer;
 
-gameServer.define('arena', ArenaRoom).then(() => {
-  console.log('✅ ArenaRoom registered');
-});
+gameServer.define('arena', ArenaRoom);
+console.log('✅ ArenaRoom registered');
 
 gameServer.listen(PORT).then(() => {
   console.log(`🎮 Game server running on ws://localhost:${PORT}`);

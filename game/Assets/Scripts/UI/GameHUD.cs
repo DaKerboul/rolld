@@ -16,9 +16,6 @@ public class GameHUD : MonoBehaviour
     private float _roundTimer = 0f;
     private bool _timerRunning = false;
 
-    // Checkpoint info (set by CheckpointSystem)
-    private int _checkpointsCurrent = 0;
-    private int _checkpointsTotal = 5;
 
     // Local race state (activated when CP0 gate is crossed, independent of server phase)
     private bool _localRaceActive = false;
@@ -64,7 +61,6 @@ public class GameHUD : MonoBehaviour
         _gameMode = mode;
         _roundTimer = 0f;
         _timerRunning = true;
-        _checkpointsCurrent = 0;
     }
 
     void OnPhaseChanged(string phase)
@@ -95,7 +91,7 @@ public class GameHUD : MonoBehaviour
     public void SetCountdown(float v) => _countdown = v;
     public void SetRoundInfo(int round, string mode) { _roundNumber = round; _gameMode = mode; }
     public void SetTotalRounds(int n) => _totalRounds = n;
-    public void SetCheckpoint(int current, int total) { _checkpointsCurrent = current; _checkpointsTotal = total; }
+
 
     public void SetLocalRaceActive(bool active)
     {
@@ -207,38 +203,11 @@ public class GameHUD : MonoBehaviour
                 $"{mins:00}:{secs:00}", timerStyle);
         }
 
-        // ── Race: checkpoint progress (bottom center) ─────────────────────
-        if (_gameMode == "race" && (_phase == "playing" || _localRaceActive))
-        {
-            float bw = 300f;
-            float bx = (Screen.width - bw) / 2f;
-            float by = Screen.height - 60f;
-
-            GUI.color = new Color(0.08f, 0.08f, 0.12f, 0.85f);
-            GUI.DrawTexture(new Rect(bx - 8f, by - 8f, bw + 16f, 36f), _bgTex);
-            GUI.color = Color.white;
-
-            // Background bar
-            GUI.color = new Color(0.2f, 0.2f, 0.28f, 1f);
-            GUI.DrawTexture(new Rect(bx, by, bw, 20f), _barBgTex);
-
-            // Fill
-            float fill = _checkpointsTotal > 0 ? (float)_checkpointsCurrent / _checkpointsTotal : 0f;
-            GUI.color = new Color(0.3f, 1f, 0.5f, 1f);
-            GUI.DrawTexture(new Rect(bx, by, bw * fill, 20f), _barFillTex);
-            GUI.color = Color.white;
-
-            var cpStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 11 };
-            cpStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(bx, by, bw, 20f),
-                $"Checkpoint {_checkpointsCurrent} / {_checkpointsTotal}", cpStyle);
-        }
-
     }
 
     // Static accessors for cross-script use
     public static GameHUD Instance { get; private set; }
-    public static int TotalCheckpoints { get; set; } = 5;
+
 
     // Cached values updated from NetworkManager state polling
     private int _cachedPlayersAlive = 0;

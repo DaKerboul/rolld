@@ -17,11 +17,9 @@ public class StatsTracker : MonoBehaviour
     private float _totalDistance;
     private int   _totalJumps;
     private float _maxSpeed;
-    private float _bestRaceTime;   // 0 = not set
     private int   _racesPlayed;
     private int   _qualifications;
     private int   _eliminations;
-    private int   _checkpointsTotal;
     private int   _bumpsGiven;
     private float _totalPlaytime;
 
@@ -104,18 +102,6 @@ public class StatsTracker : MonoBehaviour
         _bumpsGiven++;
     }
 
-    public void RegisterCheckpoint()
-    {
-        _checkpointsTotal++;
-    }
-
-    public void RegisterFinish(float raceTime)
-    {
-        if (raceTime <= 0f) return;
-        if (_bestRaceTime <= 0f || raceTime < _bestRaceTime)
-            _bestRaceTime = raceTime;
-    }
-
     // ─── Event handlers ──────────────────────────────────────────────────
 
     private void OnConnected()
@@ -187,11 +173,11 @@ public class StatsTracker : MonoBehaviour
                 totalDistance    = _totalDistance,
                 totalJumps       = _totalJumps,
                 maxSpeed         = _maxSpeed,
-                bestRaceTime     = _bestRaceTime > 0f ? _bestRaceTime : 0f,
+
                 racesPlayed      = _racesPlayed,
                 qualifications   = _qualifications,
                 eliminations     = _eliminations,
-                checkpointsTotal = _checkpointsTotal,
+
                 bumpsGiven       = _bumpsGiven,
                 totalPlaytime    = _totalPlaytime,
             }
@@ -224,11 +210,9 @@ public class StatsTracker : MonoBehaviour
         public float totalDistance;
         public int   totalJumps;
         public float maxSpeed;
-        public float bestRaceTime;
         public int   racesPlayed;
         public int   qualifications;
         public int   eliminations;
-        public int   checkpointsTotal;
         public int   bumpsGiven;
         public float totalPlaytime;
     }

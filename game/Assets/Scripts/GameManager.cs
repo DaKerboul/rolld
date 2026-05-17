@@ -13,7 +13,6 @@ public class GameManager : MonoBehaviour
     public GameObject playerRoot;
     public SpectatorCamera spectatorCamera;
     public GameHUD gameHUD;
-    public EliminationOverlay eliminationOverlay;
 
     public GamePhase CurrentPhase { get; private set; } = GamePhase.Lobby;
     public bool IsLocalEliminated { get; private set; } = false;
@@ -93,7 +92,6 @@ public class GameManager : MonoBehaviour
         {
             IsLocalEliminated = true;
             TransitionTo(GamePhase.Eliminated);
-            eliminationOverlay?.ShowEliminated();
         }
     }
 
@@ -102,7 +100,6 @@ public class GameManager : MonoBehaviour
         if (sessionId == NetworkManager.Instance?.LocalSessionId)
         {
             TransitionTo(GamePhase.Qualified);
-            eliminationOverlay?.ShowQualified();
         }
     }
 
@@ -122,7 +119,6 @@ public class GameManager : MonoBehaviour
 
     void HandleGameEnd(string winner)
     {
-        eliminationOverlay?.ShowGameEnd(winner);
     }
 
     void HandleDisconnected()

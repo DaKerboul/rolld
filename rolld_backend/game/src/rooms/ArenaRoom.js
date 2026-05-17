@@ -5,7 +5,7 @@ const Chat = require("../chat/ChatManager");
 const LOBBY_TIMEOUT = 30;
 const COUNTDOWN_DURATION = 3;
 const ROUND_END_DURATION = 5;
-const RACE_TIMEOUT = 180;
+
 const QUALIFY_RATIO = 0.6;
 
 class ArenaRoom extends Room {
@@ -161,7 +161,6 @@ class ArenaRoom extends Room {
 
     console.log(`[ArenaRoom] Round ${this.state.roundNumber} started (race)`);
 
-    this._phaseTimer = setTimeout(() => this._endRaceTimeout(), RACE_TIMEOUT * 1000);
   }
 
   _endRound() {
@@ -203,17 +202,6 @@ class ArenaRoom extends Room {
     this.state.winnerName = winner;
     this.broadcast("gameEnd", { winner });
     console.log(`[ArenaRoom] Game over — winner: ${winner}`);
-  }
-
-  // ─── Race mode ──────────────────────────────────────────────────────
-
-  _endRaceTimeout() {
-    this.state.players.forEach((p, id) => {
-      if (!p.isQualified && !p.isEliminated) {
-        this._eliminatePlayer(id, "timeout");
-      }
-    });
-    this._endRound();
   }
 
   // ─── Elimination helpers ─────────────────────────────────────────────

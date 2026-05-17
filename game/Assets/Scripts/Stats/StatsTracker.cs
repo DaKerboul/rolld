@@ -4,41 +4,40 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
-/// Tracks per-session and per-round player statistics and uploads them to the game server.
-/// All HTTP calls use UnityWebRequest coroutines (WebGL-safe, no async/await).
+/// Tracks player statistics and uploads them to the game server every 30s + on disconnect.
+/// No dependency on round events — works even if Colyseus callbacks are broken.
 /// </summary>
 public class StatsTracker : MonoBehaviour
 {
     public static StatsTracker Instance { get; private set; }
 
-    private const string SERVER_URL = "https://game.rolld.kerboul.me";
+    private const string SERVER_URL    = "https://game.rolld.kerboul.me";
+    private const float  SEND_INTERVAL    = 30f;
+    private const float  MIN_SEND_INTERVAL = 6f; // juste au-dessus du rate-limit serveur (5s)
 
-    // Cumulative session stats (accumulate across rounds)
+    // Cumulative stats
     private float _totalDistance;
     private int   _totalJumps;
     private float _maxSpeed;
-    private int   _racesPlayed;
-    private int   _qualifications;
-    private int   _eliminations;
     private int   _bumpsGiven;
-    private float _totalPlaytime;
 
-    // Per-round deltas (reset after each send)
-    private float _roundDistance;
-    private float _roundMaxSpeed;
+    // Playtime
     private float _sessionStart;
+    private float _playtimeSentSoFar; // how much playtime we already sent
 
+    // Tracking
     private Vector3 _lastPos;
-    private bool    _trackingActive;
+    private bool    _tracking;
     private string  _cachedName = "";
+    private float   _lastSentTime = -999f;
+
     private PlayerController _pc;
-    private Rigidbody _rb;
+    private Rigidbody        _rb;
 
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
-        _sessionStart = Time.time;
     }
 
     void Start()
@@ -49,11 +48,7 @@ public class StatsTracker : MonoBehaviour
         var nm = NetworkManager.Instance;
         if (nm != null)
         {
-            nm.OnRoundStart  += OnRoundStart;
-            nm.OnRoundEnd    += OnRoundEnd;
-            nm.OnQualified   += OnQualified;
-            nm.OnEliminated  += OnEliminated;
-            nm.OnConnected   += OnConnected;
+            nm.OnConnected    += OnConnected;
             nm.OnDisconnected += OnDisconnected;
         }
     }
@@ -63,123 +58,90 @@ public class StatsTracker : MonoBehaviour
         var nm = NetworkManager.Instance;
         if (nm != null)
         {
-            nm.OnRoundStart  -= OnRoundStart;
-            nm.OnRoundEnd    -= OnRoundEnd;
-            nm.OnQualified   -= OnQualified;
-            nm.OnEliminated  -= OnEliminated;
-            nm.OnConnected   -= OnConnected;
+            nm.OnConnected    -= OnConnected;
             nm.OnDisconnected -= OnDisconnected;
         }
     }
 
     void FixedUpdate()
     {
-        if (!_trackingActive || _rb == null || _pc == null || !_pc.enabled) return;
+        if (!_tracking || _rb == null) return;
 
-        Vector3 pos = transform.position;
-        float delta = Vector3.Distance(pos, _lastPos);
-        if (delta < 20f) // sanity cap against teleports
-        {
-            _roundDistance  += delta;
-            _totalDistance  += delta;
-        }
+        Vector3 pos   = transform.position;
+        float   delta = Vector3.Distance(pos, _lastPos);
+        if (delta < 20f) // filtre téléportations
+            _totalDistance += delta;
         _lastPos = pos;
 
         float speed = _rb.linearVelocity.magnitude;
-        if (speed > _roundMaxSpeed) _roundMaxSpeed = speed;
-        if (speed > _maxSpeed)      _maxSpeed      = speed;
+        if (speed > _maxSpeed) _maxSpeed = speed;
     }
 
-    // ─── Public hooks ────────────────────────────────────────────────────
+    // ─── Public hooks ─────────────────────────────────────────────────────
 
-    public void RegisterJump()
-    {
-        _totalJumps++;
-    }
+    public void RegisterJump() => _totalJumps++;
+    public void RegisterBump() => _bumpsGiven++;
 
-    public void RegisterBump()
-    {
-        _bumpsGiven++;
-    }
-
-    // ─── Event handlers ──────────────────────────────────────────────────
+    // ─── Connection events ────────────────────────────────────────────────
 
     private void OnConnected()
     {
-        _cachedName = NetworkManager.Instance?.LocalPlayerName ?? "";
-        _lastPos = transform.position;
-        _trackingActive = true;
+        _cachedName   = NetworkManager.Instance?.LocalPlayerName ?? "";
+        _lastPos      = transform.position;
+        _sessionStart = Time.time;
+        _tracking     = true;
+        StartCoroutine(PeriodicSend());
     }
 
     private void OnDisconnected()
     {
-        _trackingActive = false;
-        _totalPlaytime += Time.time - _sessionStart;
-        SendStats(); // best-effort on disconnect
+        _tracking = false;
+        StopAllCoroutines();
+        SendStats(); // envoi final best-effort
     }
 
-    private void OnRoundStart(int round, string mode, int totalRounds)
+    // ─── Periodic send ────────────────────────────────────────────────────
+
+    private IEnumerator PeriodicSend()
     {
-        _racesPlayed++;
-        _roundDistance = 0f;
-        _roundMaxSpeed = 0f;
-        _lastPos = transform.position;
-        _trackingActive = true;
+        while (_tracking)
+        {
+            yield return new WaitForSeconds(SEND_INTERVAL);
+            if (_tracking) SendStats();
+        }
     }
 
-    private void OnRoundEnd(int round)
-    {
-        _trackingActive = false;
-        SendStats();
-        _roundDistance = 0f;
-        _roundMaxSpeed = 0f;
-    }
-
-    private void OnQualified(string sessionId)
-    {
-        if (sessionId == NetworkManager.Instance?.LocalSessionId)
-            _qualifications++;
-    }
-
-    private void OnEliminated(string sessionId, string reason)
-    {
-        if (sessionId == NetworkManager.Instance?.LocalSessionId)
-            _eliminations++;
-    }
-
-    // ─── HTTP send ───────────────────────────────────────────────────────
+    // ─── HTTP send ────────────────────────────────────────────────────────
 
     private void SendStats()
     {
-        // Prefer live name, fall back to cached (useful on disconnect where name is cleared)
+        if (Time.time - _lastSentTime < MIN_SEND_INTERVAL) return;
         var nm = NetworkManager.Instance;
         string name = (nm != null && !string.IsNullOrEmpty(nm.LocalPlayerName))
             ? nm.LocalPlayerName
             : _cachedName;
         if (string.IsNullOrEmpty(name)) return;
+        _lastSentTime = Time.time;
         StartCoroutine(DoSendStats(name));
     }
 
     private IEnumerator DoSendStats(string playerName)
     {
-        _totalPlaytime += Time.time - _sessionStart;
-        _sessionStart = Time.time;
+        float now          = Time.time;
+        float sessionSecs  = now - _sessionStart;
+        float playtimeToSend = sessionSecs - _playtimeSentSoFar;
+        _playtimeSentSoFar = sessionSecs;
 
         var payload = new StatsPayload
         {
-            name = playerName,
+            name  = playerName,
             stats = new StatsData
             {
-                totalDistance    = _totalDistance,
-                totalJumps       = _totalJumps,
-                maxSpeed         = _maxSpeed,
-
-                racesPlayed      = _racesPlayed,
-                qualifications   = _qualifications,
-                eliminations     = _eliminations,
-
-                bumpsGiven       = _bumpsGiven,
-                totalPlaytime    = _totalPlaytime,
+                totalDistance = _totalDistance,
+                totalJumps    = _totalJumps,
+                maxSpeed      = _maxSpeed,
+                bumpsGiven    = _bumpsGiven,
+                totalPlaytime = playtimeToSend,
             }
         };
 
@@ -196,7 +158,7 @@ public class StatsTracker : MonoBehaviour
         if (req.result != UnityWebRequest.Result.Success)
             Debug.LogWarning($"[Stats] Upload failed: {req.error}");
         else
-            Debug.Log($"[Stats] Uploaded for {playerName}");
+            Debug.Log($"[Stats] Sent for {playerName} — dist:{_totalDistance:F0}m spd:{_maxSpeed:F1}m/s jumps:{_totalJumps}");
     }
 
     // ─── DTOs ─────────────────────────────────────────────────────────────
@@ -210,9 +172,6 @@ public class StatsTracker : MonoBehaviour
         public float totalDistance;
         public int   totalJumps;
         public float maxSpeed;
-        public int   racesPlayed;
-        public int   qualifications;
-        public int   eliminations;
         public int   bumpsGiven;
         public float totalPlaytime;
     }

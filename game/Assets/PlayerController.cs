@@ -20,9 +20,9 @@ public class PlayerController : MonoBehaviour
 
     [Header("Steering Feel")]
     [Tooltip("Damps velocity perpendicular to input — higher = sharper turns")]
-    public float turnDamping = 7f;
+    public float turnDamping = 1.5f;
     [Tooltip("Horizontal friction when no input is held")]
-    public float idleDrag = 3f;
+    public float idleDrag = 0.2f;
 
     [Header("Bump Collision")]
     public float bumpForce = 4f; // Impulse force when bumping a remote player
@@ -169,8 +169,7 @@ public class PlayerController : MonoBehaviour
             var cam = Camera.main;
             if (cam != null)
             {
-                // Billboard locked to Y axis — only rotate around vertical
-                Vector3 lookDir = _nameLabelObj.transform.position - cam.transform.position;
+                Vector3 lookDir = cam.transform.position - _nameLabelObj.transform.position;
                 lookDir.y = 0f;
                 if (lookDir.sqrMagnitude > 0.001f)
                     _nameLabelObj.transform.rotation = Quaternion.LookRotation(lookDir);

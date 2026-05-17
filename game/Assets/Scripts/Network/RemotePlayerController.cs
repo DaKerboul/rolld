@@ -241,17 +241,14 @@ public class RemotePlayerController : MonoBehaviour
             transform.rotation = _currentRotation;
         }
 
-        // Keep name label floating ABOVE the ball (world position, not local)
-        // Billboard: always face camera, locked to vertical axis
         if (_nameLabelObj != null)
         {
             _nameLabelObj.transform.position = transform.position + Vector3.up * 1.5f;
             var cam = Camera.main;
             if (cam != null)
             {
-                // Billboard locked to Y axis — only rotate around vertical
-                Vector3 lookDir = _nameLabelObj.transform.position - cam.transform.position;
-                lookDir.y = 0f; // Lock to horizontal plane
+                Vector3 lookDir = cam.transform.position - _nameLabelObj.transform.position;
+                lookDir.y = 0f;
                 if (lookDir.sqrMagnitude > 0.001f)
                     _nameLabelObj.transform.rotation = Quaternion.LookRotation(lookDir);
             }

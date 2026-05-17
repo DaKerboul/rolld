@@ -29,8 +29,8 @@ public class DebugNetworkUI : MonoBehaviour
             _fpsCount = 0;
         }
 
-        // Toggle detailed panel with F1
-        if (Keyboard.current != null && Keyboard.current[Key.F1].wasPressedThisFrame)
+        // Toggle detailed panel with ` (backtick)
+        if (Keyboard.current != null && Keyboard.current[Key.Backquote].wasPressedThisFrame)
             _detailsVisible = !_detailsVisible;
     }
 
@@ -47,7 +47,7 @@ public class DebugNetworkUI : MonoBehaviour
             DrawDetailPanel(nm);
 
         // Hint
-        GUI.Label(new Rect(10, Screen.height - 25, 300, 20), "F1 — Debug details", ImGuiSkin.Footer);
+        GUI.Label(new Rect(10, Screen.height - 25, 300, 20), "` — Debug details", ImGuiSkin.Footer);
     }
 
     // ───────── HUD Strip (always visible) ─────────

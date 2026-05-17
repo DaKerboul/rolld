@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.Networking;
 
 /// <summary>
-/// General chat panel. Toggle with F3.
+/// General chat panel. T to open, Escape to close.
 /// Polls GET /chat/history every 3s and sends via POST /chat/send (or Colyseus if connected).
 /// Uses ImGuiSkin for visual consistency.
 /// </summary>
@@ -42,8 +42,13 @@ public class ChatUI : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current != null && Keyboard.current[Key.F3].wasPressedThisFrame)
-            Toggle();
+        if (Keyboard.current != null)
+        {
+            if (!_visible && Keyboard.current[Key.T].wasPressedThisFrame)
+                Toggle();
+            else if (_visible && Keyboard.current[Key.Escape].wasPressedThisFrame)
+                Toggle();
+        }
 
         if (_visible)
         {
@@ -144,7 +149,7 @@ public class ChatUI : MonoBehaviour
         GUILayout.EndHorizontal();
 
         GUILayout.Space(4f);
-        GUILayout.Label("F3 — Ouvrir / Fermer  ·  Entrée — Envoyer", ImGuiSkin.Footer);
+        GUILayout.Label("T — Ouvrir  ·  Échap — Fermer  ·  Entrée — Envoyer", ImGuiSkin.Footer);
 
         ImGuiSkin.EndWindow();
 

@@ -47,7 +47,7 @@ public class KeyBindingUI : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current != null && Keyboard.current[Key.F2].wasPressedThisFrame)
+        if (Keyboard.current != null && Keyboard.current[Key.Tab].wasPressedThisFrame)
         {
             _visible = !_visible;
             IsVisible = _visible;
@@ -132,7 +132,7 @@ public class KeyBindingUI : MonoBehaviour
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Réinitialiser tout", ImGuiSkin.Button, GUILayout.Height(32)))
             ResetAllBindings();
-        if (GUILayout.Button("Fermer (F2)", ImGuiSkin.Button, GUILayout.Height(32)))
+        if (GUILayout.Button("Fermer (Tab)", ImGuiSkin.Button, GUILayout.Height(32)))
         {
             _visible = false;
             CancelRebind();
@@ -146,8 +146,7 @@ public class KeyBindingUI : MonoBehaviour
             GUILayout.Label("Appuyez sur une touche pour assigner...", ImGuiSkin.Hint);
         }
 
-        // F2 hint
-        GUILayout.Label("F2 — Ouvrir / Fermer ce menu", ImGuiSkin.Footer);
+        GUILayout.Label("Tab — Ouvrir / Fermer ce menu", ImGuiSkin.Footer);
 
         ImGuiSkin.EndWindow();
     }

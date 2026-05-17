@@ -32,6 +32,7 @@ public class StatsTracker : MonoBehaviour
 
     private Vector3 _lastPos;
     private bool    _trackingActive;
+    private string  _cachedName = "";
     private PlayerController _pc;
     private Rigidbody _rb;
 
@@ -119,6 +120,7 @@ public class StatsTracker : MonoBehaviour
 
     private void OnConnected()
     {
+        _cachedName = NetworkManager.Instance?.LocalPlayerName ?? "";
         _lastPos = transform.position;
         _trackingActive = true;
     }
@@ -163,9 +165,13 @@ public class StatsTracker : MonoBehaviour
 
     private void SendStats()
     {
+        // Prefer live name, fall back to cached (useful on disconnect where name is cleared)
         var nm = NetworkManager.Instance;
-        if (nm == null || string.IsNullOrEmpty(nm.LocalPlayerName)) return;
-        StartCoroutine(DoSendStats(nm.LocalPlayerName));
+        string name = (nm != null && !string.IsNullOrEmpty(nm.LocalPlayerName))
+            ? nm.LocalPlayerName
+            : _cachedName;
+        if (string.IsNullOrEmpty(name)) return;
+        StartCoroutine(DoSendStats(name));
     }
 
     private IEnumerator DoSendStats(string playerName)

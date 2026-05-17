@@ -334,8 +334,8 @@ public class NetworkManager : MonoBehaviour
     private void OnRoomLeave(int code)
     {
         Debug.Log($"[Network] Left room (code: {code})");
+        OnDisconnected?.Invoke(); // before Cleanup so listeners still have LocalPlayerName
         Cleanup();
-        OnDisconnected?.Invoke();
     }
 
     private void Cleanup()

@@ -4,16 +4,17 @@ import { theme } from '../env'
 const SERVER = 'https://game.rolld.kerboul.me'
 
 const TABS = [
-  { key: 'totalDistance', label: 'Distance', unit: 'm', format: v => Math.round(v).toLocaleString('fr-FR') },
-  { key: 'maxSpeed', label: 'Vitesse max', unit: 'm/s', format: v => v.toFixed(1) },
-  { key: 'totalJumps', label: 'Sauts', unit: '', format: v => v.toLocaleString('fr-FR') },
-  { key: 'bestRaceTime', label: 'Meilleur temps', unit: '', format: v => {
-    const m = Math.floor(v / 60)
-    const s = (v % 60).toFixed(2).padStart(5, '0')
-    return `${m}:${s}`
+  { key: 'totalDistance', label: 'Distance',    unit: 'm',   format: v => Math.round(v ?? 0).toLocaleString('fr-FR') },
+  { key: 'maxSpeed',      label: 'Vitesse max', unit: 'm/s', format: v => (v ?? 0).toFixed(1) },
+  { key: 'totalJumps',   label: 'Sauts',       unit: '',    format: v => (v ?? 0).toLocaleString('fr-FR') },
+  { key: 'bumpsGiven',   label: 'Bumps',       unit: '',    format: v => (v ?? 0).toLocaleString('fr-FR') },
+  { key: 'totalPlaytime',label: 'Temps de jeu',unit: '',    format: v => {
+    const total = Math.round(v ?? 0)
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`
   }},
-  { key: 'racesPlayed', label: 'Courses', unit: '', format: v => v.toLocaleString('fr-FR') },
-  { key: 'bumpsGiven', label: 'Bumps', unit: '', format: v => v.toLocaleString('fr-FR') },
 ]
 
 export default function StatsPage() {
@@ -38,6 +39,7 @@ export default function StatsPage() {
   }, [])
 
   useEffect(() => {
+    setRows([])
     fetchLeaderboard(activeTab)
     const id = setInterval(() => fetchLeaderboard(activeTab), 30_000)
     return () => clearInterval(id)
@@ -124,7 +126,7 @@ export default function StatsPage() {
                       {row.name}
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-sm" style={{ color: theme.accentLight }}>
-                      {currentTab.format(row[activeTab])}
+                      {currentTab.format(row.value)}
                       {currentTab.unit && <span className="text-rolld-muted ml-1">{currentTab.unit}</span>}
                     </td>
                   </tr>

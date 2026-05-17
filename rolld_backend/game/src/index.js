@@ -56,8 +56,12 @@ const gameServer = new Server({
 
     app.post('/stats/update', (req, res) => {
       const parsed = statsUpdateSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+      if (!parsed.success) {
+        console.warn('[Stats] Bad update request:', JSON.stringify(parsed.error.issues));
+        return res.status(400).json({ error: parsed.error.issues });
+      }
       const ok = Stats.update(parsed.data.name, parsed.data.stats);
+      console.log(`[Stats] Update for "${parsed.data.name}": ok=${ok}`, JSON.stringify(parsed.data.stats));
       res.json({ ok });
     });
 

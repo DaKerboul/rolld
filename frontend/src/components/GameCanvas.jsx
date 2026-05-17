@@ -3,11 +3,10 @@ import { useState, useEffect, useCallback } from 'react'
 // Check if Unity build files exist
 const UNITY_BUILD_PATH = '/unity-build/Build'
 // Cache-busting version — update this after each Unity build
-const UNITY_BUILD_VERSION = '20260310c'
-const LOADER_URL = `${UNITY_BUILD_PATH}/nouveau_build.loader.js?v=${UNITY_BUILD_VERSION}`
+const UNITY_BUILD_VERSION = '20260517'
+const BUILD_PREFIX = 'build_mai'
+const LOADER_URL = `${UNITY_BUILD_PATH}/${BUILD_PREFIX}.loader.js?v=${UNITY_BUILD_VERSION}`
 
-// Game server URL (Colyseus WebSocket)
-const GAME_SERVER_URL = import.meta.env.VITE_GAME_SERVER_URL || 'ws://localhost:2567'
 
 export default function GameCanvas({ onBack }) {
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -39,9 +38,9 @@ export default function GameCanvas({ onBack }) {
       if (typeof window.createUnityInstance === 'function') {
         const canvas = document.getElementById('unity-canvas')
         window.createUnityInstance(canvas, {
-          dataUrl: `${UNITY_BUILD_PATH}/nouveau_build.data?v=${UNITY_BUILD_VERSION}`,
-          frameworkUrl: `${UNITY_BUILD_PATH}/nouveau_build.framework.js?v=${UNITY_BUILD_VERSION}`,
-          codeUrl: `${UNITY_BUILD_PATH}/nouveau_build.wasm?v=${UNITY_BUILD_VERSION}`,
+          dataUrl: `${UNITY_BUILD_PATH}/${BUILD_PREFIX}.data?v=${UNITY_BUILD_VERSION}`,
+          frameworkUrl: `${UNITY_BUILD_PATH}/${BUILD_PREFIX}.framework.js?v=${UNITY_BUILD_VERSION}`,
+          codeUrl: `${UNITY_BUILD_PATH}/${BUILD_PREFIX}.wasm?v=${UNITY_BUILD_VERSION}`,
           streamingAssetsUrl: '/unity-build/StreamingAssets',
           companyName: 'ROLLD',
           productName: 'ROLLD',
@@ -79,9 +78,7 @@ export default function GameCanvas({ onBack }) {
             }
           }
 
-          // Pass game server URL to Unity's NetworkManager
-          instance.SendMessage('NetworkManager', 'SetServerURL', GAME_SERVER_URL)
-          console.log('[ROLLD] Unity loaded, server URL sent:', GAME_SERVER_URL)
+          console.log('[ROLLD] Unity loaded')
         }).catch((err) => {
           setError(err.message)
         })
@@ -153,10 +150,10 @@ export default function GameCanvas({ onBack }) {
             </div>
             <div className="glass rounded-xl p-4 text-left text-sm text-rolld-muted font-mono max-w-sm w-full">
               <p className="text-rolld-accent-light mb-2">Fichiers requis :</p>
-              <p>├── nouveau_build.loader.js</p>
-              <p>├── nouveau_build.data</p>
-              <p>├── nouveau_build.framework.js</p>
-              <p>└── nouveau_build.wasm</p>
+              <p>├── build_mai.loader.js</p>
+              <p>├── build_mai.data</p>
+              <p>├── build_mai.framework.js</p>
+              <p>└── build_mai.wasm</p>
             </div>
           </div>
         )}

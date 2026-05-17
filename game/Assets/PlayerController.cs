@@ -44,6 +44,7 @@ public class PlayerController : MonoBehaviour
     public float maxVelocity = 120f; // Velocity cap to prevent infinite acceleration
     public float respawnY = -10f; // Y threshold for respawn
     private Vector3 _spawnPos = new Vector3(0f, 3f, -30f);
+    private Rigidbody _rb;
 
     // Squash & stretch
     private bool _isSquashing = false;
@@ -80,9 +81,11 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         Debug.Log("PlayerController script initialized.");
-        // Cursor lock is handled by LobbyUI on connect/disconnect
-        _meshTransform = transform; // Will be the sphere itself for squash
+        _rb = GetComponent<Rigidbody>();
+        _meshTransform = transform;
     }
+
+    public void SetSpawnPosition(Vector3 pos) => _spawnPos = pos;
 
     /// <summary>
     /// Called by LobbyUI after connecting. Sets up the local player
@@ -208,16 +211,15 @@ public class PlayerController : MonoBehaviour
         // --- Respawn if fallen off the map ---
         if (transform.position.y < respawnY)
         {
-            Rigidbody rbRespawn = GetComponent<Rigidbody>();
-            if (rbRespawn != null)
+            if (_rb != null)
             {
-                rbRespawn.linearVelocity = Vector3.zero;
-                rbRespawn.angularVelocity = Vector3.zero;
+                _rb.linearVelocity = Vector3.zero;
+                _rb.angularVelocity = Vector3.zero;
+                _rb.useGravity = true;
             }
             transform.position = _spawnPos;
             isOnGelViolet = false;
             isOnGelOrange = false;
-            if (rbRespawn != null) rbRespawn.useGravity = true;
             Debug.Log("[Player] Respawned after falling.");
             return;
         }
@@ -227,7 +229,7 @@ public class PlayerController : MonoBehaviour
         _fallWarningAlpha = Mathf.Lerp(_fallWarningAlpha, fallTarget, Time.deltaTime * 5f);
 
         // Mouvement continu selon les directions maintenues
-        Rigidbody rb = GetComponent<Rigidbody>();
+        Rigidbody rb = _rb;
         if (rb != null)
         {
             float currentSpeed = MovementSpeed;
@@ -326,42 +328,25 @@ public class PlayerController : MonoBehaviour
     void OnCollisionStay(Collision collision)
     {
         Collider col = collision.collider;
-        if (col != null && col.sharedMaterial != null)
-        {
-            if (col.sharedMaterial.name.Contains("GelOrange"))
-            {
-                isOnGelOrange = true;
-            }
-            else
-            {
-                isOnGelOrange = false;
-            }
+        if (col == null || col.sharedMaterial == null) return;
 
-            if (col.sharedMaterial.name.Contains("GelViolet"))
+        if (col.sharedMaterial.name.Contains("GelOrange"))
+        {
+            isOnGelOrange = true;
+        }
+
+        if (col.sharedMaterial.name.Contains("GelViolet"))
+        {
+            if (!isOnGelViolet)
             {
-                if (!isOnGelViolet)
-                {
-                    // Premier contact : sauvegarder le drag et augmenter le frein
-                    Rigidbody rb = GetComponent<Rigidbody>();
-                    if (rb != null)
-                    {
-                        originalDrag = rb.linearDamping;
-                        rb.linearDamping = 1f; // Fort frein pour éviter le catapultage aux bords
-                    }
-                }
-                isOnGelViolet = true;
-                // Normale instantanée de la surface de contact
-                Vector3 avgNormal = Vector3.zero;
-                foreach (ContactPoint contact in collision.contacts)
-                {
-                    avgNormal += contact.normal;
-                }
-                stickyNormal = avgNormal.normalized;
+                originalDrag = _rb != null ? _rb.linearDamping : 0f;
+                if (_rb != null) _rb.linearDamping = 1f;
             }
-            else
-            {
-                isOnGelViolet = false;
-            }
+            isOnGelViolet = true;
+            Vector3 avgNormal = Vector3.zero;
+            foreach (ContactPoint contact in collision.contacts)
+                avgNormal += contact.normal;
+            stickyNormal = avgNormal.normalized;
         }
     }
 
@@ -424,17 +409,9 @@ public class PlayerController : MonoBehaviour
 
     public void PerformJump(float force)
     {
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            // Jump direction: surface normal when on sticky, otherwise up
-            Vector3 jumpDir = isOnGelViolet ? stickyNormal : Vector3.up;
-            rb.AddForce(jumpDir * force, ForceMode.Impulse);
-        }
-        else
-        {
-            Debug.LogWarning("Rigidbody component not found on PlayerController.");
-        }
+        if (_rb == null) return;
+        Vector3 jumpDir = isOnGelViolet ? stickyNormal : Vector3.up;
+        _rb.AddForce(jumpDir * force, ForceMode.Impulse);
     }
 
     private bool IsGrounded()
@@ -546,11 +523,8 @@ public class PlayerController : MonoBehaviour
         // Add slight upward component so the ball lifts off the ground
         dir = (dir + Vector3.up * 0.3f).normalized;
 
-        var rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.AddForce(dir * bumpForce, ForceMode.Impulse);
-        }
+        if (_rb != null)
+            _rb.AddForce(dir * bumpForce, ForceMode.Impulse);
     }
 
     void OnCollisionEnter(Collision collision)
@@ -742,10 +716,9 @@ public class PlayerController : MonoBehaviour
         // ========================
         //  SPEED INDICATOR
         // ========================
-        Rigidbody rbHud = GetComponent<Rigidbody>();
-        if (rbHud != null)
+        if (_rb != null)
         {
-            float speed = rbHud.linearVelocity.magnitude;
+            float speed = _rb.linearVelocity.magnitude;
             var speedStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleRight,

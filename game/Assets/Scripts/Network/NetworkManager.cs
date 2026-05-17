@@ -44,10 +44,9 @@ public class NetworkManager : MonoBehaviour
     public event Action<float>  OnCountdownChanged;   // seconds remaining
     public event Action<string, string> OnEliminated; // sessionId, reason
     public event Action<string> OnQualified;          // sessionId
-    public event Action<int, string> OnRoundStart;    // roundNumber, mode
+    public event Action<int, string, int> OnRoundStart; // roundNumber, mode, totalRounds
     public event Action<int> OnRoundEnd;              // roundNumber
     public event Action<string> OnGameEnd;            // winnerName
-    public event Action<float>  OnDeathZoneYChanged;  // for survival mode
 
     // --- Internals ---
     private Client _client;
@@ -145,7 +144,6 @@ public class NetworkManager : MonoBehaviour
             // Game state changes
             _callbacks.Listen(state => state.phase, (newValue, prevValue) => _OnPhaseChanged(newValue));
             _callbacks.Listen(state => state.countdown, (newValue, prevValue) => OnCountdownChanged?.Invoke(newValue));
-            _callbacks.Listen(state => state.deathZoneY, (newValue, prevValue) => OnDeathZoneYChanged?.Invoke(newValue));
 
             // Server messages
             _room.OnMessage<EliminatedMsg>("eliminated", msg =>
@@ -161,7 +159,7 @@ public class NetworkManager : MonoBehaviour
             _room.OnMessage<RoundStartMsg>("roundStart", msg =>
             {
                 Debug.Log($"[Network] Round {msg.round} started ({msg.mode})");
-                OnRoundStart?.Invoke(msg.round, msg.mode);
+                OnRoundStart?.Invoke(msg.round, msg.mode, msg.totalRounds);
             });
             _room.OnMessage<RoundEndMsg>("roundEnd", msg =>
             {
@@ -206,18 +204,6 @@ public class NetworkManager : MonoBehaviour
     {
         if (_room != null && IsConnected)
             await _room.Send("checkpointReached", new { index });
-    }
-
-    public async void SendDeathZoneHit()
-    {
-        if (_room != null && IsConnected)
-            await _room.Send("deathZoneHit", null);
-    }
-
-    public async void SendInZone(bool inZone)
-    {
-        if (_room != null && IsConnected)
-            await _room.Send("inZone", new { inZone });
     }
 
     // ─── State Callbacks ─────────────────────────────────────────────────
@@ -285,11 +271,6 @@ public class NetworkManager : MonoBehaviour
                 new Vector3(player.avx, player.avy, player.avz)
             );
 
-            // Sync team color changes (for teams mode)
-            controller.UpdateTeamColor(player.team,
-                new Color(player.colorR, player.colorG, player.colorB));
-
-            // Hide/show eliminated remote players
             controller.SetVisible(!player.isEliminated);
         }
     }

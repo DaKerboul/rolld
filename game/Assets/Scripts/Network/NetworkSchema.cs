@@ -25,8 +25,7 @@ public partial class NetworkPlayer : Schema
     [Type(18, "boolean")] public bool   isEliminated = false;
     [Type(19, "boolean")] public bool   isQualified = false;
     [Type(20, "boolean")] public bool   isReady = false;
-    [Type(21, "int8")]    public int    team = 0;
-    [Type(22, "int8")]    public int    checkpointIndex = 0;
+    [Type(21, "int8")]    public int    checkpointIndex = 0;
 }
 
 public partial class NetworkState : Schema
@@ -40,8 +39,5 @@ public partial class NetworkState : Schema
     [Type(4, "int8")]    public int    totalRounds = 4;
     [Type(5, "int8")]    public int    playersAlive = 0;
     [Type(6, "string")]  public string gameMode = "race";
-    [Type(7, "float32")] public float  deathZoneY = -100;
-    [Type(8, "int16")]   public int    teamScoreRed = 0;
-    [Type(9, "int16")]   public int    teamScoreBlue = 0;
-    [Type(10, "string")] public string winnerName = "";
+    [Type(7, "string")]  public string winnerName = "";
 }

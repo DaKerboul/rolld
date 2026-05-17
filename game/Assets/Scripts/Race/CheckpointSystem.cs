@@ -80,11 +80,10 @@ public class CheckpointSystem : MonoBehaviour
         {
             _finished = true;
             Debug.Log("[Checkpoint] FINISH LINE reached!");
-            StartCoroutine(FinishFlash());
         }
         else
         {
-            StartCoroutine(FlashCheckpoint(index));
+            StartCoroutine(FlashCheckpoint(_localCheckpointIndex));
         }
     }
 
@@ -144,17 +143,6 @@ public class CheckpointSystem : MonoBehaviour
             SetRendererColor(rend, orig);
             yield return new WaitForSeconds(0.08f);
         }
-    }
-
-    private IEnumerator FinishFlash()
-    {
-        float t = 0f;
-        while (t < 2f)
-        {
-            t += Time.deltaTime;
-            yield return null;
-        }
-        // Finish confirmed via network — GameManager/EliminationOverlay handles the "Qualifié!" overlay
     }
 
     private static void SetRendererColor(Renderer rend, Color c)

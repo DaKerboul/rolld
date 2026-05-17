@@ -91,6 +91,7 @@ public class GameHUD : MonoBehaviour
     public void SetPhase(string phase) => _phase = phase;
     public void SetCountdown(float v) => _countdown = v;
     public void SetRoundInfo(int round, string mode) { _roundNumber = round; _gameMode = mode; }
+    public void SetTotalRounds(int n) => _totalRounds = n;
     public void SetCheckpoint(int current, int total) { _checkpointsCurrent = current; _checkpointsTotal = total; }
 
     public void SetLocalRaceActive(bool active)
@@ -168,15 +169,6 @@ public class GameHUD : MonoBehaviour
         GUI.Label(new Rect(panelX + 8f, panelY + 32f, panelW - 16f, 24f), modeFull, modeStyle);
 
         // ── Top-right: Players alive ──────────────────────────────────────
-        int alive = nm?.GetLocalPlayerState() != null
-            ? (_room_playersAlive > 0 ? _room_playersAlive : 1)
-            : 0;
-
-        if (nm != null)
-        {
-            // read from room state if accessible
-        }
-
         float prX = Screen.width - 180f;
         GUI.color = new Color(0.08f, 0.08f, 0.12f, 0.85f);
         GUI.DrawTexture(new Rect(prX, panelY, 168f, panelH), _bgTex);
@@ -239,44 +231,6 @@ public class GameHUD : MonoBehaviour
                 $"Checkpoint {_checkpointsCurrent} / {_checkpointsTotal}", cpStyle);
         }
 
-        // ── Teams: score display (bottom center) ──────────────────────────
-        if (_gameMode == "teams" && _phase == "playing")
-        {
-            float tw = 260f;
-            float tx = (Screen.width - tw) / 2f;
-            float ty = Screen.height - 60f;
-
-            GUI.color = new Color(0.08f, 0.08f, 0.12f, 0.85f);
-            GUI.DrawTexture(new Rect(tx - 8f, ty - 8f, tw + 16f, 36f), _bgTex);
-            GUI.color = Color.white;
-
-            var teamStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20, fontStyle = FontStyle.Bold };
-
-            // Red team score
-            teamStyle.normal.textColor = new Color(1f, 0.3f, 0.3f);
-            GUI.Label(new Rect(tx, ty - 2f, tw * 0.4f, 28f), $"{_cachedScoreRed}", teamStyle);
-
-            // Separator
-            var sepStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 16 };
-            sepStyle.normal.textColor = new Color(0.5f, 0.5f, 0.6f);
-            GUI.Label(new Rect(tx + tw * 0.4f, ty - 2f, tw * 0.2f, 28f), "vs", sepStyle);
-
-            // Blue team score
-            teamStyle.normal.textColor = new Color(0.3f, 0.6f, 1f);
-            GUI.Label(new Rect(tx + tw * 0.6f, ty - 2f, tw * 0.4f, 28f), $"{_cachedScoreBlue}", teamStyle);
-        }
-
-        // ── Survival: death zone warning ──────────────────────────────────
-        if (_gameMode == "survival" && _phase == "playing" && _deathZoneWarning > 0.01f)
-        {
-            GUI.color = new Color(1f, 0.3f, 0.1f, _deathZoneWarning * 0.4f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _bgTex);
-            GUI.color = Color.white;
-
-            var warnStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20, fontStyle = FontStyle.Bold };
-            warnStyle.normal.textColor = new Color(1f, 0.4f, 0.2f, _deathZoneWarning);
-            GUI.Label(new Rect(0, Screen.height * 0.8f, Screen.width, 36f), "⚠ ZONE DE MORT MONTE !", warnStyle);
-        }
     }
 
     // Static accessors for cross-script use
@@ -285,32 +239,7 @@ public class GameHUD : MonoBehaviour
 
     // Cached values updated from NetworkManager state polling
     private int _cachedPlayersAlive = 0;
-    private int _cachedScoreRed = 0;
-    private int _cachedScoreBlue = 0;
-    private float _deathZoneWarning = 0f;
-    private int _room_playersAlive = 0;
 
-    void LateUpdate()
-    {
-        // Poll NetworkManager for display values (avoids tight coupling via events for display-only data)
-        if (NetworkManager.Instance == null || !NetworkManager.Instance.IsConnected) return;
-
-        // Survival: check death zone proximity
-        if (_gameMode == "survival")
-        {
-            var localState = NetworkManager.Instance.GetLocalPlayerState();
-            if (localState != null)
-            {
-                // deathZoneY is synced via NetworkState — we read via a static accessor pattern
-                // For now, warn when player Y is within 5 units above death zone
-                // (actual deathZoneY is not directly accessible here without extra plumbing)
-            }
-        }
-    }
-
-    // Called by DeathZone.cs to update the warning
-    public void SetDeathZoneWarning(float intensity) => _deathZoneWarning = intensity;
-    public void SetTeamScores(int red, int blue) { _cachedScoreRed = red; _cachedScoreBlue = blue; }
     public void SetPlayersAlive(int count) => _cachedPlayersAlive = count;
 
     private static void EnsureTextures()

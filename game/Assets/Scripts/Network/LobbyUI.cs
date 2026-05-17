@@ -88,6 +88,7 @@ public class LobbyUI : MonoBehaviour
         _lobbyActive = false;
         _isConnecting = false;
         _statusMessage = "";
+        CancelInvoke(nameof(CheckConnectionTimeout));
 
         // --- Activate the player hierarchy ---
         if (playerRoot != null)
@@ -113,6 +114,7 @@ public class LobbyUI : MonoBehaviour
                         rb.position = spawnPos;
                     }
                     pc.transform.position = spawnPos;
+                    pc.SetSpawnPosition(spawnPos);
                     Debug.Log($"[Lobby] Player teleported to spawn: {spawnPos}");
                 }
                 pc.enabled = true;

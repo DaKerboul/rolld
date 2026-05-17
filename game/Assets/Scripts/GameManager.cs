@@ -27,32 +27,32 @@ public class GameManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    void OnEnable()
+    void Start()
     {
         var nm = NetworkManager.Instance;
         if (nm == null) return;
-        nm.OnPhaseChanged   += HandlePhaseChanged;
+        nm.OnPhaseChanged     += HandlePhaseChanged;
         nm.OnCountdownChanged += HandleCountdownChanged;
-        nm.OnEliminated     += HandleEliminated;
-        nm.OnQualified      += HandleQualified;
-        nm.OnRoundStart     += HandleRoundStart;
-        nm.OnRoundEnd       += HandleRoundEnd;
-        nm.OnGameEnd        += HandleGameEnd;
-        nm.OnDisconnected   += HandleDisconnected;
+        nm.OnEliminated       += HandleEliminated;
+        nm.OnQualified        += HandleQualified;
+        nm.OnRoundStart       += HandleRoundStart;
+        nm.OnRoundEnd         += HandleRoundEnd;
+        nm.OnGameEnd          += HandleGameEnd;
+        nm.OnDisconnected     += HandleDisconnected;
     }
 
-    void OnDisable()
+    void OnDestroy()
     {
         var nm = NetworkManager.Instance;
         if (nm == null) return;
-        nm.OnPhaseChanged   -= HandlePhaseChanged;
+        nm.OnPhaseChanged     -= HandlePhaseChanged;
         nm.OnCountdownChanged -= HandleCountdownChanged;
-        nm.OnEliminated     -= HandleEliminated;
-        nm.OnQualified      -= HandleQualified;
-        nm.OnRoundStart     -= HandleRoundStart;
-        nm.OnRoundEnd       -= HandleRoundEnd;
-        nm.OnGameEnd        -= HandleGameEnd;
-        nm.OnDisconnected   -= HandleDisconnected;
+        nm.OnEliminated       -= HandleEliminated;
+        nm.OnQualified        -= HandleQualified;
+        nm.OnRoundStart       -= HandleRoundStart;
+        nm.OnRoundEnd         -= HandleRoundEnd;
+        nm.OnGameEnd          -= HandleGameEnd;
+        nm.OnDisconnected     -= HandleDisconnected;
     }
 
     // ─── Event Handlers ───────────────────────────────────────────────────
@@ -106,11 +106,12 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void HandleRoundStart(int round, string mode)
+    void HandleRoundStart(int round, string mode, int totalRounds)
     {
         CurrentRound = round;
         CurrentMode = mode;
         gameHUD?.SetRoundInfo(round, mode);
+        gameHUD?.SetTotalRounds(totalRounds);
         IsLocalEliminated = false;
     }
 
@@ -140,7 +141,7 @@ public class GameManager : MonoBehaviour
         switch (phase)
         {
             case GamePhase.Lobby:
-                SetPlayerActive(false);
+                SetPlayerActive(NetworkManager.Instance?.IsConnected ?? false);
                 SetSpectatorActive(false);
                 gameHUD?.SetPhase("lobby");
                 break;

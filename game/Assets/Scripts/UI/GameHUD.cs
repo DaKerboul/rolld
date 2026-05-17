@@ -57,9 +57,10 @@ public class GameHUD : MonoBehaviour
         }
     }
 
-    void OnRoundStart(int round, string mode)
+    void OnRoundStart(int round, string mode, int totalRounds)
     {
         _roundNumber = round;
+        _totalRounds = totalRounds;
         _gameMode = mode;
         _roundTimer = 0f;
         _timerRunning = true;

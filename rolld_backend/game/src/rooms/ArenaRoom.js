@@ -14,6 +14,7 @@ class ArenaRoom extends Room {
   onCreate(options) {
     this.setState(new GameState());
     this.setPatchRate(16); // ~62.5 Hz
+    this.setMetadata({ name: options?.roomName || ('Salle #' + this.roomId.substring(0, 6)) });
 
     this._phaseTimer = null;
     this._lobbyTimer = null;

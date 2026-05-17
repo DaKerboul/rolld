@@ -179,18 +179,8 @@ public class ChatUI : MonoBehaviour
         if (string.IsNullOrEmpty(text) || PlayerName.Length == 0) return;
         _inputText = "";
         _autoScroll = true;
-
-        var nm = NetworkManager.Instance;
-        if (nm != null && nm.IsConnected)
-        {
-            // Fast path: through Colyseus (room broadcasts it back to all players AND saves to ChatManager)
-            nm.SendChatMessage(text);
-        }
-        else
-        {
-            // Fallback: direct HTTP (for frontend-only visitors or disconnected state)
-            StartCoroutine(DoSend(PlayerName, text));
-        }
+        // Always use HTTP — the server endpoint broadcasts to Colyseus rooms anyway
+        StartCoroutine(DoSend(PlayerName, text));
     }
 
     // ─── HTTP polling ─────────────────────────────────────────────────────
@@ -233,6 +223,9 @@ public class ChatUI : MonoBehaviour
         req.downloadHandler = new DownloadHandlerBuffer();
         req.SetRequestHeader("Content-Type", "application/json");
         yield return req.SendWebRequest();
+
+        // Immediate poll so the message appears right away
+        StartCoroutine(DoPoll());
     }
 
     // Called by NetworkManager when a "chat" message arrives via Colyseus

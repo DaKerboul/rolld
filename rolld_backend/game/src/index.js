@@ -1,5 +1,5 @@
 const cors = require('cors');
-const { Server } = require('@colyseus/core');
+const { Server, matchMaker } = require('@colyseus/core');
 const { WebSocketTransport } = require('@colyseus/ws-transport');
 const { ArenaRoom } = require('./rooms/ArenaRoom');
 const Stats = require('./stats/StatsManager');
@@ -59,6 +59,21 @@ const gameServer = new Server({
       if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
       const ok = Stats.update(parsed.data.name, parsed.data.stats);
       res.json({ ok });
+    });
+
+    // ── Rooms ────────────────────────────────────────────────────────────
+    app.get('/rooms', async (_req, res) => {
+      try {
+        const rooms = await matchMaker.query({ name: 'arena' });
+        res.json(rooms.map(r => ({
+          roomId:     r.roomId,
+          clients:    r.clients,
+          maxClients: r.maxClients,
+          metadata:   r.metadata || {},
+        })));
+      } catch (_) {
+        res.json([]);
+      }
     });
 
     // ── Chat ─────────────────────────────────────────────────────────────

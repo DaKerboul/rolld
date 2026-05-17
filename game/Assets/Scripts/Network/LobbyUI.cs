@@ -1,107 +1,126 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Lobby UI displayed at scene start. Player enters a name, picks a color,
-/// and clicks "Rejoindre" to connect to the arena.
-/// Manages the full pre-game → in-game transition:
-///  - Hides the Player hierarchy until connected
-///  - Activates a spectator camera while in lobby
-///  - Teleports the player ball to the server spawn position on join
-/// Uses Dear ImGui–style skin via ImGuiSkin.
+/// Lobby UI: character setup + room list side by side.
+/// - T to open/close chat, Tab for keybinds (handled elsewhere)
+/// - Lists available rooms, lets the player create or join one
 /// </summary>
 public class LobbyUI : MonoBehaviour
 {
     [Header("Scene References")]
-    [Tooltip("The root 'Player' GameObject (contains PlayerSphere + cameras). Will be deactivated until connected.")]
     public GameObject playerRoot;
-
-    [Tooltip("The spectator camera GameObject (SpectatorCamera component).")]
     public SpectatorCamera spectatorCamera;
 
-    // Preset colors for selection
-    private static readonly Color[] PresetColors = new Color[]
+    private static readonly Color[] PresetColors =
     {
-        new Color(1f, 0.35f, 0.2f),    // Orange-red
-        new Color(0.2f, 0.6f, 1f),     // Blue
-        new Color(0.3f, 1f, 0.4f),     // Green
-        new Color(1f, 0.85f, 0.1f),    // Yellow
-        new Color(0.8f, 0.3f, 1f),     // Purple
-        new Color(1f, 0.5f, 0.7f),     // Pink
+        new Color(1f, 0.35f, 0.2f),
+        new Color(0.2f, 0.6f, 1f),
+        new Color(0.3f, 1f, 0.4f),
+        new Color(1f, 0.85f, 0.1f),
+        new Color(0.8f, 0.3f, 1f),
+        new Color(1f, 0.5f, 0.7f),
     };
-
-    private static readonly string[] ColorNames = new string[]
-    {
-        "Rouge", "Bleu", "Vert", "Jaune", "Violet", "Rose"
-    };
+    private static readonly string[] ColorNames = { "Rouge", "Bleu", "Vert", "Jaune", "Violet", "Rose" };
 
     // UI state
-    private bool _lobbyActive = true;
-    private string _playerName = "";
-    private int _selectedColorIndex = 0;
+    private bool   _lobbyActive  = true;
+    private string _playerName   = "";
+    private int    _selectedColorIndex = 0;
     private string _statusMessage = "";
-    private bool _isConnecting = false;
-    private bool _isReady = false;
+    private bool   _isConnecting = false;
+    private bool   _isReady      = false;
 
-    // Cached color preview texture (avoid per-frame leak)
+    // Room list
+    private NetworkManager.RoomInfo[] _rooms = new NetworkManager.RoomInfo[0];
+    private bool   _roomsFetching = false;
+    private float  _refreshTimer  = 0f;
+    private const float REFRESH_INTERVAL = 4f;
+    private Vector2 _roomsScroll;
+
+    // Color preview texture
     private Texture2D _colorPreviewTex;
     private int _lastPreviewColorIndex = -1;
 
     void Start()
     {
-        // Generate a default name
-        _playerName = "Joueur" + Random.Range(100, 999);
+        _playerName = PlayerPrefs.GetString("rolld_player_name", "Joueur" + Random.Range(100, 999));
 
-        // --- Hide the player hierarchy until connected ---
         if (playerRoot != null)
             playerRoot.SetActive(false);
 
-        // --- Activate spectator camera ---
         if (spectatorCamera != null)
         {
-            // Wire the gameplay camera reference so spectator knows what to re-enable
             var gameplayCam = playerRoot?.GetComponentInChildren<Camera>(true);
             if (gameplayCam != null)
                 spectatorCamera.gameplayCamera = gameplayCam;
-
             spectatorCamera.Activate();
         }
 
-        // Subscribe to network events
-        if (NetworkManager.Instance != null)
+        var nm = NetworkManager.Instance;
+        if (nm != null)
         {
-            NetworkManager.Instance.OnConnected += OnConnected;
-            NetworkManager.Instance.OnDisconnected += OnDisconnected;
+            nm.OnConnected      += OnConnected;
+            nm.OnDisconnected   += OnDisconnected;
+            nm.OnRoomsRefreshed += OnRoomsRefreshed;
         }
+
+        RefreshRooms();
     }
 
     void OnDestroy()
     {
-        if (NetworkManager.Instance != null)
+        var nm = NetworkManager.Instance;
+        if (nm != null)
         {
-            NetworkManager.Instance.OnConnected -= OnConnected;
-            NetworkManager.Instance.OnDisconnected -= OnDisconnected;
+            nm.OnConnected      -= OnConnected;
+            nm.OnDisconnected   -= OnDisconnected;
+            nm.OnRoomsRefreshed -= OnRoomsRefreshed;
         }
     }
 
+    void Update()
+    {
+        if (!_lobbyActive || _isConnecting) return;
+        _refreshTimer += Time.deltaTime;
+        if (_refreshTimer >= REFRESH_INTERVAL)
+        {
+            _refreshTimer = 0f;
+            RefreshRooms();
+        }
+    }
+
+    private void RefreshRooms()
+    {
+        if (_roomsFetching) return;
+        _roomsFetching = true;
+        NetworkManager.Instance?.FetchRooms();
+    }
+
+    private void OnRoomsRefreshed(NetworkManager.RoomInfo[] rooms)
+    {
+        _rooms = rooms;
+        _roomsFetching = false;
+    }
+
+    // ─── Network callbacks ────────────────────────────────────────────────
+
     private void OnConnected()
     {
-        _lobbyActive = false;
+        _lobbyActive  = false;
         _isConnecting = false;
         _statusMessage = "";
-        CancelInvoke(nameof(CheckConnectionTimeout));
+        CancelInvoke(nameof(ConnectionTimeout));
 
-        // --- Activate the player hierarchy ---
         if (playerRoot != null)
             playerRoot.SetActive(true);
 
-        // Teleport player ball to the server-assigned spawn position
         var nm = NetworkManager.Instance;
         if (nm != null && playerRoot != null)
         {
             var pc = playerRoot.GetComponentInChildren<PlayerController>(true);
             if (pc != null)
             {
-                // Get spawn pos from the local player's state in the room
                 var localState = nm.GetLocalPlayerState();
                 if (localState != null)
                 {
@@ -109,42 +128,36 @@ public class LobbyUI : MonoBehaviour
                     var rb = pc.GetComponent<Rigidbody>();
                     if (rb != null)
                     {
-                        rb.linearVelocity = Vector3.zero;
+                        rb.linearVelocity  = Vector3.zero;
                         rb.angularVelocity = Vector3.zero;
                         rb.position = spawnPos;
                     }
                     pc.transform.position = spawnPos;
                     pc.SetSpawnPosition(spawnPos);
-                    Debug.Log($"[Lobby] Player teleported to spawn: {spawnPos}");
                 }
                 pc.enabled = true;
-
-                // Setup local player visuals: 50% color tint + floating name label
                 pc.SetupLocalPlayer(nm.LocalPlayerName, nm.LocalPlayerColor);
             }
         }
 
-        // --- Switch from spectator to gameplay camera ---
         if (spectatorCamera != null)
             spectatorCamera.Deactivate();
 
-        // Unlock cursor for gameplay
         Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        Cursor.visible   = false;
     }
 
     private void OnDisconnected()
     {
-        _lobbyActive = true;
-        _isConnecting = false;
-        _isReady = false;
+        _lobbyActive   = true;
+        _isConnecting  = false;
+        _isReady       = false;
         _statusMessage = "Déconnecté du serveur";
+        _refreshTimer  = REFRESH_INTERVAL; // force immediate refresh
 
-        // Show cursor for lobby
         Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        Cursor.visible   = true;
 
-        // --- Deactivate the player hierarchy ---
         if (playerRoot != null)
         {
             var pc = playerRoot.GetComponentInChildren<PlayerController>(true);
@@ -152,188 +165,267 @@ public class LobbyUI : MonoBehaviour
             playerRoot.SetActive(false);
         }
 
-        // --- Re-enable spectator camera ---
         if (spectatorCamera != null)
             spectatorCamera.Activate();
     }
+
+    // ─── OnGUI ────────────────────────────────────────────────────────────
 
     void OnGUI()
     {
         if (!_lobbyActive) return;
 
         ImGuiSkin.EnsureReady();
-
         if (Cursor.lockState != CursorLockMode.None)
         {
             Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            Cursor.visible   = true;
         }
-
         ImGuiSkin.DrawOverlay();
 
         bool isConnected = NetworkManager.Instance != null && NetworkManager.Instance.IsConnected;
 
         if (!isConnected)
+            DrawSetupAndRoomList();
+        else
+            DrawWaitingRoom();
+    }
+
+    // ─── Setup + room list ────────────────────────────────────────────────
+
+    private void DrawSetupAndRoomList()
+    {
+        const float W = 620f, H = 520f;
+        float x = (Screen.width  - W) * 0.5f;
+        float y = (Screen.height - H) * 0.5f;
+
+        ImGuiSkin.BeginWindowAt(x, y, W, H, "ROLL'D");
+        GUILayout.Label("Choisir une salle et configurer son personnage", ImGuiSkin.WindowSubtitle);
+        GUILayout.Space(10);
+
+        GUILayout.BeginHorizontal();
+
+        // ── Left column : character setup ─────────────────────────────
+        GUILayout.BeginVertical(GUILayout.Width(240));
+        ImGuiSkin.DrawSectionHeader("PERSONNAGE");
+        GUILayout.Space(4);
+        _playerName = GUILayout.TextField(_playerName, 16, ImGuiSkin.TextField, GUILayout.Height(30));
+        GUILayout.Space(10);
+
+        ImGuiSkin.DrawSectionHeader("COULEUR");
+        GUILayout.Space(4);
+
+        GUILayout.BeginHorizontal();
+        for (int i = 0; i < PresetColors.Length; i++)
         {
-            // ── Pre-connect panel ────────────────────────────────────────
-            float panelWidth = 420;
-            float panelHeight = 440;
-            ImGuiSkin.BeginWindow(panelWidth, panelHeight, "ROLL'D");
+            Color c        = PresetColors[i];
+            bool  selected = _selectedColorIndex == i;
+            Color prevBg   = GUI.backgroundColor;
+            GUI.backgroundColor = selected ? c : c * 0.6f;
+            var btnStyle = new GUIStyle(ImGuiSkin.ButtonSmall)
+                { fontStyle = selected ? FontStyle.Bold : FontStyle.Normal };
+            if (selected) btnStyle.normal.textColor = Color.white;
+            if (GUILayout.Button(selected ? $"▸{ColorNames[i][0]}" : $"{ColorNames[i][0]}",
+                    btnStyle, GUILayout.Height(30), GUILayout.Width(34)))
+                _selectedColorIndex = i;
+            GUI.backgroundColor = prevBg;
+        }
+        GUILayout.EndHorizontal();
 
-            GUILayout.Label("Rejoindre l'arène multijoueur", ImGuiSkin.WindowSubtitle);
-            GUILayout.Space(16);
-
-            ImGuiSkin.DrawSectionHeader("PSEUDO");
-            GUILayout.Space(4);
-            _playerName = GUILayout.TextField(_playerName, 16, ImGuiSkin.TextField, GUILayout.Height(30));
-            GUILayout.Space(12);
-
-            ImGuiSkin.DrawSectionHeader("COULEUR");
-            GUILayout.Space(6);
-
-            GUILayout.BeginHorizontal();
-            for (int i = 0; i < PresetColors.Length; i++)
+        GUILayout.Space(4);
+        // Color swatch
+        if (_colorPreviewTex == null || _lastPreviewColorIndex != _selectedColorIndex)
+        {
+            if (_colorPreviewTex == null)
             {
-                Color c = PresetColors[i];
-                bool selected = _selectedColorIndex == i;
-                Color prevBg = GUI.backgroundColor;
-                GUI.backgroundColor = selected ? c : c * 0.7f;
-                GUIStyle btnStyle = new GUIStyle(ImGuiSkin.ButtonSmall)
-                {
-                    fontStyle = selected ? FontStyle.Bold : FontStyle.Normal,
-                };
-                if (selected) btnStyle.normal.textColor = Color.white;
-                string label = selected ? $"▸ {ColorNames[i]}" : ColorNames[i];
-                if (GUILayout.Button(label, btnStyle, GUILayout.Height(32), GUILayout.Width(60)))
-                    _selectedColorIndex = i;
-                GUI.backgroundColor = prevBg;
+                _colorPreviewTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+                _colorPreviewTex.hideFlags = HideFlags.HideAndDontSave;
             }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(4);
+            _colorPreviewTex.SetPixel(0, 0, PresetColors[_selectedColorIndex]);
+            _colorPreviewTex.Apply();
+            _lastPreviewColorIndex = _selectedColorIndex;
+        }
+        var swatchStyle = new GUIStyle(ImGuiSkin.LabelDim) { alignment = TextAnchor.MiddleLeft, fontSize = 11 };
+        GUILayout.Label($"▌ {ColorNames[_selectedColorIndex]}", swatchStyle);
 
-            if (_colorPreviewTex == null || _lastPreviewColorIndex != _selectedColorIndex)
-            {
-                if (_colorPreviewTex == null)
-                {
-                    _colorPreviewTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-                    _colorPreviewTex.hideFlags = HideFlags.HideAndDontSave;
-                }
-                _colorPreviewTex.SetPixel(0, 0, PresetColors[_selectedColorIndex]);
-                _colorPreviewTex.Apply();
-                _lastPreviewColorIndex = _selectedColorIndex;
-            }
-            GUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+
+        // Create room button
+        GUI.enabled = !_isConnecting && !string.IsNullOrWhiteSpace(_playerName);
+        if (GUILayout.Button("+ Créer une salle", ImGuiSkin.Button, GUILayout.Height(36)))
+            DoCreate();
+
+        GUILayout.Space(4);
+
+        // Join any (join or create fallback)
+        if (GUILayout.Button("▶ Rejoindre n'importe", ImGuiSkin.ButtonAccent, GUILayout.Height(36)))
+            DoJoinAny();
+
+        GUI.enabled = true;
+        GUILayout.EndVertical();
+
+        GUILayout.Space(12);
+
+        // ── Right column : room list ───────────────────────────────────
+        GUILayout.BeginVertical();
+        GUILayout.BeginHorizontal();
+        ImGuiSkin.DrawSectionHeader("SALLES DISPONIBLES");
+        GUILayout.FlexibleSpace();
+        GUI.enabled = !_roomsFetching;
+        if (GUILayout.Button(_roomsFetching ? "…" : "↻", ImGuiSkin.ButtonSmall,
+                GUILayout.Width(28), GUILayout.Height(22)))
+        {
+            _refreshTimer = 0f;
+            RefreshRooms();
+        }
+        GUI.enabled = true;
+        GUILayout.EndHorizontal();
+        GUILayout.Space(4);
+
+        float listH = H - 160f;
+        _roomsScroll = GUILayout.BeginScrollView(_roomsScroll, ImGuiSkin.ScrollView,
+            GUILayout.Height(listH));
+
+        if (_rooms.Length == 0)
+        {
+            var emptyStyle = new GUIStyle(ImGuiSkin.LabelDim) { alignment = TextAnchor.MiddleCenter };
             GUILayout.FlexibleSpace();
-            GUILayout.Box(_colorPreviewTex, GUIStyle.none, GUILayout.Width(80), GUILayout.Height(16));
+            GUILayout.Label(_roomsFetching ? "Chargement…" : "Aucune salle ouverte.", emptyStyle);
             GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            GUILayout.Space(16);
-
-            GUI.enabled = !_isConnecting && !string.IsNullOrWhiteSpace(_playerName);
-            string buttonText = _isConnecting ? "Connexion..." : "▶ Rejoindre l'arène";
-            if (GUILayout.Button(buttonText, ImGuiSkin.ButtonAccent, GUILayout.Height(44)))
-                JoinArena();
-            GUI.enabled = true;
-            GUILayout.Space(8);
-
-            if (!string.IsNullOrEmpty(_statusMessage))
-            {
-                bool isError = _statusMessage.Contains("Erreur") || _statusMessage.Contains("Déconnecté");
-                GUIStyle statusStyle = isError ? ImGuiSkin.StatusRed : new GUIStyle(ImGuiSkin.Hint);
-                if (!isError) statusStyle.normal.textColor = ImGuiSkin.ColYellow;
-                GUILayout.Label(_statusMessage, statusStyle);
-            }
-
-            ImGuiSkin.EndWindow();
         }
         else
         {
-            // ── Waiting room panel (connected, waiting for game to start) ──
-            float panelWidth = 380;
-            float panelHeight = 320;
-            ImGuiSkin.BeginWindow(panelWidth, panelHeight, "SALLE D'ATTENTE");
-
-            GUILayout.Label("En attente des joueurs...", ImGuiSkin.WindowSubtitle);
-            GUILayout.Space(12);
-
-            // Player list
-            ImGuiSkin.DrawSectionHeader("JOUEURS CONNECTÉS");
-            GUILayout.Space(4);
-            var nm = NetworkManager.Instance;
-            if (nm != null && nm.IsConnected)
+            foreach (var room in _rooms)
             {
-                // We can't directly iterate NetworkState.players from here easily,
-                // so show basic count
-                var style = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-                style.normal.textColor = new Color(0.75f, 0.75f, 0.85f);
-                GUILayout.Label($"  {nm.PlayerCount} joueur(s) dans la salle", style);
-            }
-            GUILayout.Space(16);
+                string roomName = room.metadata?.name ?? ("Salle #" + room.roomId.Substring(0, 6));
+                int    clients  = room.clients;
+                int    maxCli   = room.maxClients;
 
-            // Ready button
-            if (!_isReady)
-            {
-                if (GUILayout.Button("✔ Je suis prêt !", ImGuiSkin.ButtonAccent, GUILayout.Height(44)))
-                {
-                    _isReady = true;
-                    NetworkManager.Instance?.SendReady();
-                }
-            }
-            else
-            {
-                var readyStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 16,
-                    fontStyle = FontStyle.Bold,
-                };
-                readyStyle.normal.textColor = new Color(0.3f, 1f, 0.5f);
-                GUILayout.Label("✔ Prêt ! En attente des autres...", readyStyle, GUILayout.Height(44));
-            }
+                GUILayout.BeginHorizontal();
 
-            GUILayout.Space(8);
-            var hintStyle = new GUIStyle(ImGuiSkin.Hint);
-            hintStyle.normal.textColor = new Color(0.5f, 0.5f, 0.6f);
-            GUILayout.Label("La partie démarre quand tout le monde est prêt\nou automatiquement après 30 secondes.", hintStyle);
+                var nameStyle = new GUIStyle(ImGuiSkin.LabelBold) { fontSize = 12 };
+                GUILayout.Label(roomName, nameStyle, GUILayout.Width(140));
 
-            ImGuiSkin.EndWindow();
+                var countStyle = new GUIStyle(ImGuiSkin.LabelDim) { alignment = TextAnchor.MiddleCenter, fontSize = 11 };
+                GUILayout.Label($"{clients} / {maxCli}", countStyle, GUILayout.Width(48));
+
+                GUILayout.FlexibleSpace();
+
+                bool full = clients >= maxCli;
+                GUI.enabled = !_isConnecting && !full && !string.IsNullOrWhiteSpace(_playerName);
+                if (GUILayout.Button(full ? "Pleine" : "▶ Rejoindre",
+                        ImGuiSkin.ButtonSmall, GUILayout.Width(90), GUILayout.Height(26)))
+                    DoJoinRoom(room.roomId);
+                GUI.enabled = true;
+
+                GUILayout.EndHorizontal();
+                ImGuiSkin.Separator();
+                GUILayout.Space(2);
+            }
         }
+
+        GUILayout.EndScrollView();
+        GUILayout.EndVertical();
+
+        GUILayout.EndHorizontal(); // end columns
+
+        // ── Status bar ────────────────────────────────────────────────
+        GUILayout.Space(4);
+        if (!string.IsNullOrEmpty(_statusMessage))
+        {
+            bool isError = _statusMessage.Contains("Erreur") || _statusMessage.Contains("Déconnecté");
+            GUILayout.Label(_statusMessage, isError ? ImGuiSkin.StatusRed : ImGuiSkin.Hint);
+        }
+
+        ImGuiSkin.EndWindow();
     }
 
-    private void JoinArena()
+    // ─── Waiting room ─────────────────────────────────────────────────────
+
+    private void DrawWaitingRoom()
     {
-        if (NetworkManager.Instance == null)
+        ImGuiSkin.BeginWindow(400f, 300f, "SALLE D'ATTENTE");
+
+        var nm = NetworkManager.Instance;
+        string roomDisplay = nm != null ? ("Salle #" + nm.RoomId.Substring(0, Mathf.Min(6, nm.RoomId.Length))) : "—";
+        GUILayout.Label(roomDisplay, ImGuiSkin.WindowSubtitle);
+        GUILayout.Space(12);
+
+        ImGuiSkin.DrawSectionHeader("JOUEURS CONNECTÉS");
+        GUILayout.Space(4);
+        if (nm != null)
         {
-            _statusMessage = "Erreur : NetworkManager introuvable";
-            return;
+            var s = new GUIStyle(GUI.skin.label) { fontSize = 13 };
+            s.normal.textColor = new Color(0.75f, 0.75f, 0.85f);
+            GUILayout.Label($"  {nm.PlayerCount} joueur(s) dans la salle", s);
         }
+        GUILayout.Space(16);
 
-        if (string.IsNullOrWhiteSpace(_playerName))
+        if (!_isReady)
         {
-            _statusMessage = "Entrez un pseudo";
-            return;
-        }
-
-        _isConnecting = true;
-        _statusMessage = "Connexion au serveur...";
-
-        Color selectedColor = PresetColors[_selectedColorIndex];
-        NetworkManager.Instance.JoinArena(_playerName.Trim(), selectedColor);
-
-        // Monitor for errors after a delay
-        Invoke(nameof(CheckConnectionTimeout), 10f);
-    }
-
-    private void CheckConnectionTimeout()
-    {
-        if (_isConnecting && !NetworkManager.Instance.IsConnected)
-        {
-            _isConnecting = false;
-            _statusMessage = "Erreur : Impossible de joindre rolld.io. Réessayez dans quelques instants.";
-            if (!string.IsNullOrEmpty(NetworkManager.Instance.LastError))
+            if (GUILayout.Button("✔ Je suis prêt !", ImGuiSkin.ButtonAccent, GUILayout.Height(44)))
             {
-                _statusMessage += $"\n{NetworkManager.Instance.LastError}";
+                _isReady = true;
+                NetworkManager.Instance?.SendReady();
             }
         }
+        else
+        {
+            var rs = new GUIStyle(GUI.skin.label)
+                { alignment = TextAnchor.MiddleCenter, fontSize = 16, fontStyle = FontStyle.Bold };
+            rs.normal.textColor = new Color(0.3f, 1f, 0.5f);
+            GUILayout.Label("✔ Prêt ! En attente des autres…", rs, GUILayout.Height(44));
+        }
+
+        GUILayout.Space(8);
+        GUILayout.Label("La partie démarre quand tout le monde est prêt\nou automatiquement après 30 secondes.", ImGuiSkin.Hint);
+
+        ImGuiSkin.EndWindow();
+    }
+
+    // ─── Actions ──────────────────────────────────────────────────────────
+
+    private string ValidateName()
+    {
+        string n = _playerName.Trim();
+        if (string.IsNullOrEmpty(n)) { _statusMessage = "Entre un pseudo d'abord."; return null; }
+        return n;
+    }
+
+    private void DoJoinRoom(string roomId)
+    {
+        string n = ValidateName(); if (n == null) return;
+        _isConnecting  = true;
+        _statusMessage = "Connexion à la salle…";
+        NetworkManager.Instance?.JoinByRoomId(roomId, n, PresetColors[_selectedColorIndex]);
+        Invoke(nameof(ConnectionTimeout), 10f);
+    }
+
+    private void DoCreate()
+    {
+        string n = ValidateName(); if (n == null) return;
+        _isConnecting  = true;
+        _statusMessage = "Création d'une salle…";
+        NetworkManager.Instance?.CreateRoom(n, PresetColors[_selectedColorIndex]);
+        Invoke(nameof(ConnectionTimeout), 10f);
+    }
+
+    private void DoJoinAny()
+    {
+        string n = ValidateName(); if (n == null) return;
+        _isConnecting  = true;
+        _statusMessage = "Connexion…";
+        NetworkManager.Instance?.JoinArena(n, PresetColors[_selectedColorIndex]);
+        Invoke(nameof(ConnectionTimeout), 10f);
+    }
+
+    private void ConnectionTimeout()
+    {
+        if (!_isConnecting) return;
+        _isConnecting  = false;
+        var nm = NetworkManager.Instance;
+        _statusMessage = "Impossible de se connecter. Réessaie.";
+        if (nm != null && !string.IsNullOrEmpty(nm.LastError))
+            _statusMessage += $"\n{nm.LastError}";
     }
 }

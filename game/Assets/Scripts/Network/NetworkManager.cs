@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 using Colyseus;
 using Colyseus.Schema;
 
@@ -32,6 +34,24 @@ public class NetworkManager : MonoBehaviour
     // Local player info (set during join)
     public string LocalPlayerName { get; private set; } = "";
     public Color LocalPlayerColor { get; private set; } = Color.white;
+
+    // --- Room listing ---
+    [System.Serializable] public class RoomMeta { public string name; }
+    [System.Serializable] public class RoomInfo  { public string roomId; public int clients; public int maxClients; public RoomMeta metadata; }
+    [System.Serializable] private class RoomListWrapper { public List<RoomInfo> items; }
+
+    public event Action<RoomInfo[]> OnRoomsRefreshed;
+
+    public void FetchRooms() => StartCoroutine(DoFetchRooms());
+
+    private IEnumerator DoFetchRooms()
+    {
+        using var req = UnityWebRequest.Get($"{serverURL.Replace("wss://", "https://").Replace("ws://", "http://")}/rooms");
+        yield return req.SendWebRequest();
+        if (req.result != UnityWebRequest.Result.Success) { OnRoomsRefreshed?.Invoke(Array.Empty<RoomInfo>()); yield break; }
+        var wrapper = JsonUtility.FromJson<RoomListWrapper>($"{{\"items\":{req.downloadHandler.text}}}");
+        OnRoomsRefreshed?.Invoke(wrapper?.items?.ToArray() ?? Array.Empty<RoomInfo>());
+    }
 
     // --- Events ---
     public event Action OnConnected;
@@ -100,97 +120,101 @@ public class NetworkManager : MonoBehaviour
 
     // ─── Join / Leave ────────────────────────────────────────────────────
 
-    public async void JoinArena(string playerName, Color color)
-    {
-        if (_isJoining || IsConnected)
-        {
-            Debug.LogWarning("[Network] Already connecting or connected.");
-            return;
-        }
+    // ─── Join helpers ─────────────────────────────────────────────────────
 
+    private Dictionary<string, object> BuildJoinOptions(string playerName, Color color) => new()
+    {
+        { "name",   playerName },
+        { "colorR", color.r },
+        { "colorG", color.g },
+        { "colorB", color.b },
+    };
+
+    private void PrepareJoin(string playerName, Color color)
+    {
         _isJoining = true;
         ConnectionStatus = "Connexion en cours...";
         LastError = "";
         LocalPlayerName = playerName;
         LocalPlayerColor = color;
         PlayerPrefs.SetString("rolld_player_name", playerName);
+        _client = new Client(serverURL);
+    }
 
+    private void FinishJoin()
+    {
+        LocalSessionId = _room.SessionId;
+        RoomId = _room.RoomId;
+        IsConnected = true;
+        ConnectionStatus = "Connecté";
+        Debug.Log($"[Network] Joined room {RoomId} as {LocalSessionId}");
+
+        _callbacks = Callbacks.Get(_room);
+        _callbacks.OnAdd(state => state.players, (key, player) => OnPlayerAdd(key, player));
+        _callbacks.OnRemove(state => state.players, (key, player) => OnPlayerRemove(key, player));
+        _callbacks.Listen(state => state.phase, (v, _) => _OnPhaseChanged(v));
+        _callbacks.Listen(state => state.countdown, (v, _) => OnCountdownChanged?.Invoke(v));
+
+        _room.OnMessage<EliminatedMsg>("eliminated", msg => { OnEliminated?.Invoke(msg.sessionId, msg.reason); });
+        _room.OnMessage<QualifiedMsg> ("qualified",  msg => { OnQualified?.Invoke(msg.sessionId); });
+        _room.OnMessage<RoundStartMsg>("roundStart", msg => { OnRoundStart?.Invoke(msg.round, msg.mode, msg.totalRounds); });
+        _room.OnMessage<RoundEndMsg>  ("roundEnd",   msg => { OnRoundEnd?.Invoke(msg.round); });
+        _room.OnMessage<GameEndMsg>   ("gameEnd",    msg => { OnGameEnd?.Invoke(msg.winner); });
+        _room.OnMessage<ChatUI.ChatMessage>("chat",  msg => { ChatUI.Instance?.ReceiveChatMessage(msg); });
+        _room.OnLeave += OnRoomLeave;
+
+        OnConnected?.Invoke();
+    }
+
+    private void HandleJoinError(Exception e)
+    {
+        Debug.LogError($"[Network] Failed to join: {e.Message}");
+        ConnectionStatus = "Erreur de connexion";
+        LastError = e.Message;
+        IsConnected = false;
+    }
+
+    // ─── Public join methods ──────────────────────────────────────────────
+
+    public async void JoinArena(string playerName, Color color)
+    {
+        if (_isJoining || IsConnected) return;
+        PrepareJoin(playerName, color);
         try
         {
-            Debug.Log($"[Network] Connecting to {serverURL}...");
-            _client = new Client(serverURL);
-
-            var options = new Dictionary<string, object>
-            {
-                { "name", playerName },
-                { "colorR", color.r },
-                { "colorG", color.g },
-                { "colorB", color.b }
-            };
-
-            _room = await _client.JoinOrCreate<NetworkState>("arena", options);
-            LocalSessionId = _room.SessionId;
-            RoomId = _room.RoomId;
-            IsConnected = true;
-            ConnectionStatus = "Connecté";
-
-            Debug.Log($"[Network] Joined room {RoomId} as {LocalSessionId}");
-
-            _callbacks = Callbacks.Get(_room);
-
-            // Players
-            _callbacks.OnAdd(state => state.players, (key, player) => OnPlayerAdd(key, player));
-            _callbacks.OnRemove(state => state.players, (key, player) => OnPlayerRemove(key, player));
-
-            // Game state changes
-            _callbacks.Listen(state => state.phase, (newValue, prevValue) => _OnPhaseChanged(newValue));
-            _callbacks.Listen(state => state.countdown, (newValue, prevValue) => OnCountdownChanged?.Invoke(newValue));
-
-            // Server messages
-            _room.OnMessage<EliminatedMsg>("eliminated", msg =>
-            {
-                Debug.Log($"[Network] Eliminated: {msg.sessionId} ({msg.reason})");
-                OnEliminated?.Invoke(msg.sessionId, msg.reason);
-            });
-            _room.OnMessage<QualifiedMsg>("qualified", msg =>
-            {
-                Debug.Log($"[Network] Qualified: {msg.sessionId}");
-                OnQualified?.Invoke(msg.sessionId);
-            });
-            _room.OnMessage<RoundStartMsg>("roundStart", msg =>
-            {
-                Debug.Log($"[Network] Round {msg.round} started ({msg.mode})");
-                OnRoundStart?.Invoke(msg.round, msg.mode, msg.totalRounds);
-            });
-            _room.OnMessage<RoundEndMsg>("roundEnd", msg =>
-            {
-                Debug.Log($"[Network] Round {msg.round} ended");
-                OnRoundEnd?.Invoke(msg.round);
-            });
-            _room.OnMessage<GameEndMsg>("gameEnd", msg =>
-            {
-                Debug.Log($"[Network] Game over — Winner: {msg.winner}");
-                OnGameEnd?.Invoke(msg.winner);
-            });
-            _room.OnMessage<ChatUI.ChatMessage>("chat", msg =>
-            {
-                ChatUI.Instance?.ReceiveChatMessage(msg);
-            });
-
-            _room.OnLeave += OnRoomLeave;
-            OnConnected?.Invoke();
+            _room = await _client.JoinOrCreate<NetworkState>("arena", BuildJoinOptions(playerName, color));
+            FinishJoin();
         }
-        catch (Exception e)
+        catch (Exception e) { HandleJoinError(e); }
+        finally { _isJoining = false; }
+    }
+
+    public async void JoinByRoomId(string roomId, string playerName, Color color)
+    {
+        if (_isJoining || IsConnected) return;
+        PrepareJoin(playerName, color);
+        try
         {
-            Debug.LogError($"[Network] Failed to join: {e.Message}");
-            ConnectionStatus = "Erreur de connexion";
-            LastError = e.Message;
-            IsConnected = false;
+            _room = await _client.JoinById<NetworkState>(roomId, BuildJoinOptions(playerName, color));
+            FinishJoin();
         }
-        finally
+        catch (Exception e) { HandleJoinError(e); }
+        finally { _isJoining = false; }
+    }
+
+    public async void CreateRoom(string playerName, Color color, string roomName = null)
+    {
+        if (_isJoining || IsConnected) return;
+        PrepareJoin(playerName, color);
+        try
         {
-            _isJoining = false;
+            var opts = BuildJoinOptions(playerName, color);
+            if (roomName != null) opts["roomName"] = roomName;
+            _room = await _client.Create<NetworkState>("arena", opts);
+            FinishJoin();
         }
+        catch (Exception e) { HandleJoinError(e); }
+        finally { _isJoining = false; }
     }
 
     public async void LeaveRoom()

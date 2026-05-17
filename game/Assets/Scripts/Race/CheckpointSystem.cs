@@ -67,6 +67,7 @@ public class CheckpointSystem : MonoBehaviour
         }
 
         _localCheckpointIndex++;
+        StatsTracker.Instance?.RegisterCheckpoint();
         NetworkManager.Instance?.SendCheckpoint(_localCheckpointIndex);
 
         Debug.Log($"[Checkpoint] Reached {_localCheckpointIndex}/{checkpoints.Length}");
@@ -79,6 +80,7 @@ public class CheckpointSystem : MonoBehaviour
         if (_localCheckpointIndex >= checkpoints.Length)
         {
             _finished = true;
+            StatsTracker.Instance?.RegisterFinish(GameHUD.Instance != null ? GameHUD.Instance.LocalRaceTimer : 0f);
             Debug.Log("[Checkpoint] FINISH LINE reached!");
         }
         else

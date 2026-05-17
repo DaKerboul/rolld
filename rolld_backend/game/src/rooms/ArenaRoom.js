@@ -1,5 +1,6 @@
 const { Room } = require("@colyseus/core");
 const { GameState, Player } = require("../schema/GameState");
+const Chat = require("../chat/ChatManager");
 
 const LOBBY_TIMEOUT = 30;
 const COUNTDOWN_DURATION = 3;
@@ -44,6 +45,13 @@ class ArenaRoom extends Room {
       player.isReady = true;
       console.log(`[ArenaRoom] ${client.sessionId} ready`);
       this._checkAllReady();
+    });
+
+    this.onMessage("chat", (client, data) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !data.text) return;
+      const msg = Chat.push(player.name, data.text);
+      if (msg) this.broadcast("chat", msg);
     });
 
     this.onMessage("checkpointReached", (client, data) => {

@@ -89,6 +89,8 @@ public class GameHUD : MonoBehaviour
         _countdownPulse = Mathf.Max(0f, _countdownPulse - Time.deltaTime * 3f);
     }
 
+    public float LocalRaceTimer => _localRaceTimer;
+
     public void SetPhase(string phase) => _phase = phase;
     public void SetCountdown(float v) => _countdown = v;
     public void SetRoundInfo(int round, string mode) { _roundNumber = round; _gameMode = mode; }

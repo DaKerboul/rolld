@@ -171,6 +171,10 @@ public class NetworkManager : MonoBehaviour
                 Debug.Log($"[Network] Game over — Winner: {msg.winner}");
                 OnGameEnd?.Invoke(msg.winner);
             });
+            _room.OnMessage<ChatUI.ChatMessage>("chat", msg =>
+            {
+                ChatUI.Instance?.ReceiveChatMessage(msg);
+            });
 
             _room.OnLeave += OnRoomLeave;
             OnConnected?.Invoke();
@@ -204,6 +208,12 @@ public class NetworkManager : MonoBehaviour
     {
         if (_room != null && IsConnected)
             await _room.Send("checkpointReached", new { index });
+    }
+
+    public async void SendChatMessage(string text)
+    {
+        if (_room != null && IsConnected)
+            await _room.Send("chat", new { text });
     }
 
     // ─── State Callbacks ─────────────────────────────────────────────────

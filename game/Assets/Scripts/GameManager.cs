@@ -142,7 +142,6 @@ public class GameManager : MonoBehaviour
         {
             case GamePhase.Lobby:
                 SetPlayerActive(NetworkManager.Instance?.IsConnected ?? false);
-                SetSpectatorActive(false);
                 gameHUD?.SetPhase("lobby");
                 break;
 

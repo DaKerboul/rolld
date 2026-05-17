@@ -376,9 +376,9 @@ public class PlayerController : MonoBehaviour
     {
         if (context.started)
         {
-            // Touche appuyée
             isJumpPressed = true;
             jumpPressTime = 0f;
+            StatsTracker.Instance?.RegisterJump();
             Debug.Log("Jump Started");
         }
         else if (context.performed)
@@ -516,6 +516,7 @@ public class PlayerController : MonoBehaviour
             return;
 
         _lastBumpTime[id] = Time.time;
+        StatsTracker.Instance?.RegisterBump();
 
         // Repulsion direction: from remote toward local player
         Vector3 dir = (transform.position - other.transform.position).normalized;
@@ -606,6 +607,13 @@ public class PlayerController : MonoBehaviour
             fontStyle = FontStyle.Bold
         };
         labelStyle.normal.textColor = new Color(1f, 1f, 1f, _gaugeDisplayAlpha * 0.9f);
+        // Outline: draw 4× in black at ±1px, then once in white
+        var shadowStyle = new GUIStyle(labelStyle);
+        shadowStyle.normal.textColor = new Color(0f, 0f, 0f, _gaugeDisplayAlpha * 0.55f);
+        GUI.Label(new Rect(x + 1f, y - 25f, barWidth, 24f), "JUMP POWER", shadowStyle);
+        GUI.Label(new Rect(x - 1f, y - 27f, barWidth, 24f), "JUMP POWER", shadowStyle);
+        GUI.Label(new Rect(x + 1f, y - 27f, barWidth, 24f), "JUMP POWER", shadowStyle);
+        GUI.Label(new Rect(x - 1f, y - 25f, barWidth, 24f), "JUMP POWER", shadowStyle);
         GUI.Label(new Rect(x, y - 26f, barWidth, 24f), "JUMP POWER", labelStyle);
 
         // Ensure textures

@@ -180,20 +180,18 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // Toggle cursor lock/unlock avec clic droit (disabled when keybind menu is open)
-        if (!KeyBindingUI.IsVisible && Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
+        // Cursor lock: right-click unlocks, left-click re-locks (disabled when any UI panel is open)
+        if (!ChatUI.IsVisible && !KeyBindingUI.IsVisible && Mouse.current != null)
         {
-            if (Cursor.lockState == CursorLockMode.Locked)
+            if (Cursor.lockState == CursorLockMode.Locked && Mouse.current.rightButton.wasPressedThisFrame)
             {
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
-                Debug.Log("Cursor UNLOCKED");
             }
-            else
+            else if (Cursor.lockState != CursorLockMode.Locked && Mouse.current.leftButton.wasPressedThisFrame)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
-                Debug.Log("Cursor LOCKED");
             }
         }
 
@@ -374,33 +372,19 @@ public class PlayerController : MonoBehaviour
 
     public void OnJump(InputAction.CallbackContext context)
     {
+        if (ChatUI.IsVisible) { isJumpPressed = false; jumpPressTime = 0f; return; }
+
         if (context.started)
         {
             isJumpPressed = true;
             jumpPressTime = 0f;
             StatsTracker.Instance?.RegisterJump();
-            Debug.Log("Jump Started");
-        }
-        else if (context.performed)
-        {
-            // Action validée (utile pour saut immédiat aussi)
-            Debug.Log("Jump Performed");
         }
         else if (context.canceled)
         {
-            // Touche relâchée
             float jumpForceFactor = Mathf.Clamp01(jumpPressTime / maxJumpHoldTime);
             if (IsGrounded())
-            {
                 PerformJump(jumpForceFactor * JumpForce);
-                Debug.Log($"Jump Released after {jumpPressTime}s -> Force factor: {jumpForceFactor}");
-            }
-            else
-            {
-                Debug.Log("Jump Released but not grounded.");
-            }
-
-            // Reset jump state so gauge goes back to 0
             isJumpPressed = false;
             jumpPressTime = 0f;
         }
@@ -424,75 +408,30 @@ public class PlayerController : MonoBehaviour
 
     public void OnForward(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            isForwardHeld = true;
-            Debug.Log("Forward Action Started");
-        }
-        else if (context.performed)
-        {
-            // Forward action performed
-            Debug.Log("Forward Action Performed");
-        }
-        else if (context.canceled)
-        {
-            isForwardHeld = false;
-            Debug.Log("Forward Action Canceled");
-        }
+        if (ChatUI.IsVisible) { isForwardHeld = false; return; }
+        if (context.started) isForwardHeld = true;
+        else if (context.canceled) isForwardHeld = false;
     }
 
     public void OnBackwards(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            isBackwardsHeld = true;
-            Debug.Log("Backwards Action Started");
-        }
-        else if (context.performed)
-        {
-            Debug.Log("Backwards Action Performed");
-        }
-        else if (context.canceled)
-        {
-            isBackwardsHeld = false;
-            Debug.Log("Backwards Action Canceled");
-        }
+        if (ChatUI.IsVisible) { isBackwardsHeld = false; return; }
+        if (context.started) isBackwardsHeld = true;
+        else if (context.canceled) isBackwardsHeld = false;
     }
 
     public void OnLeft(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            isLeftHeld = true;
-            Debug.Log("Left Action Started");
-        }
-        else if (context.performed)
-        {
-            Debug.Log("Left Action Performed");
-        }
-        else if (context.canceled)
-        {
-            isLeftHeld = false;
-            Debug.Log("Left Action Canceled");
-        }
+        if (ChatUI.IsVisible) { isLeftHeld = false; return; }
+        if (context.started) isLeftHeld = true;
+        else if (context.canceled) isLeftHeld = false;
     }
 
     public void OnRight(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            isRightHeld = true;
-            Debug.Log("Right Action Started");
-        }
-        else if (context.performed)
-        {
-            Debug.Log("Right Action Performed");
-        }
-        else if (context.canceled)
-        {
-            isRightHeld = false;
-            Debug.Log("Right Action Canceled");
-        }
+        if (ChatUI.IsVisible) { isRightHeld = false; return; }
+        if (context.started) isRightHeld = true;
+        else if (context.canceled) isRightHeld = false;
     }
 
     // --- Bump collision with remote players ---
@@ -562,6 +501,16 @@ public class PlayerController : MonoBehaviour
         }
         transform.localScale = original;
         _isSquashing = false;
+    }
+
+    public void ResetInputs()
+    {
+        isForwardHeld = false;
+        isBackwardsHeld = false;
+        isLeftHeld = false;
+        isRightHeld = false;
+        isJumpPressed = false;
+        jumpPressTime = 0f;
     }
 
     void OnDestroy()

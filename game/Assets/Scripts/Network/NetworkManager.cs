@@ -163,6 +163,13 @@ public class NetworkManager : MonoBehaviour
         _room.OnMessage<ChatUI.ChatMessage>("chat",  msg => { ChatUI.Instance?.ReceiveChatMessage(msg); });
         _room.OnLeave += OnRoomLeave;
 
+        // Seed players already present in the room (state decoded before callbacks were registered)
+        if (_room.State.players != null)
+        {
+            foreach (var kvp in _room.State.players)
+                OnPlayerAdd(kvp.Key, kvp.Value);
+        }
+
         OnConnected?.Invoke();
     }
 
@@ -257,11 +264,14 @@ public class NetworkManager : MonoBehaviour
         PlayerCount = _room.State.players?.Count ?? 0;
 
         if (sessionId == LocalSessionId) return;
+        if (_remotePlayers.ContainsKey(sessionId)) return; // prevent duplicate spawn
 
-        if (remotePlayerPrefab != null)
         {
             Vector3 spawnPos = new Vector3(player.x, player.y, player.z);
-            GameObject remoteBall = Instantiate(remotePlayerPrefab, spawnPos, Quaternion.identity);
+            GameObject remoteBall = remotePlayerPrefab != null
+                ? Instantiate(remotePlayerPrefab, spawnPos, Quaternion.identity)
+                : GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            remoteBall.transform.position = spawnPos;
             remoteBall.name = $"RemotePlayer_{player.name}_{sessionId[..6]}";
 
             var controller = remoteBall.GetComponent<RemotePlayerController>()

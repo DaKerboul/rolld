@@ -76,6 +76,8 @@ public class ChatUI : MonoBehaviour
             _pollTimer = POLL_INTERVAL; // poll immediately
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            // Release held movement keys so the ball doesn't keep moving while typing
+            FindFirstObjectByType<PlayerController>()?.ResetInputs();
         }
         else
         {

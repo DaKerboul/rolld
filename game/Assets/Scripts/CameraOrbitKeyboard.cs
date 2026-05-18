@@ -29,7 +29,9 @@ public class CameraOrbitKeyboard : MonoBehaviour
     {
         // On gère la souris nous-mêmes
         if (_axisController != null) _axisController.enabled = false;
-        LockCursor();
+        // Only lock cursor if no UI panel is open
+        if (!ChatUI.IsVisible && !KeyBindingUI.IsVisible)
+            LockCursor();
     }
 
     void OnDisable()
@@ -55,16 +57,16 @@ public class CameraOrbitKeyboard : MonoBehaviour
 
         var mouse = Mouse.current;
 
-        // Clic droit = toggle lock
-        if (mouse != null && mouse.rightButton.wasPressedThisFrame)
+        // Right-click unlocks, left-click re-locks (consistent with PlayerController)
+        if (!ChatUI.IsVisible && !KeyBindingUI.IsVisible && mouse != null)
         {
-            if (Cursor.lockState == CursorLockMode.Locked)
+            if (Cursor.lockState == CursorLockMode.Locked && mouse.rightButton.wasPressedThisFrame)
                 UnlockCursor();
-            else
+            else if (Cursor.lockState != CursorLockMode.Locked && mouse.leftButton.wasPressedThisFrame)
                 LockCursor();
         }
 
-        if (KeyBindingUI.IsVisible) return;
+        if (KeyBindingUI.IsVisible || ChatUI.IsVisible) return;
 
         // Souris — seulement quand locked (delta infini, sans accrochage au bord)
         if (Cursor.lockState == CursorLockMode.Locked && mouse != null)

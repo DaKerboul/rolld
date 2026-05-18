@@ -154,6 +154,7 @@ public class NetworkManager : MonoBehaviour
         _callbacks.OnRemove(state => state.players, (key, player) => OnPlayerRemove(key, player));
         _callbacks.Listen(state => state.phase, (v, _) => _OnPhaseChanged(v));
         _callbacks.Listen(state => state.countdown, (v, _) => OnCountdownChanged?.Invoke(v));
+        _callbacks.Listen(state => state.playersAlive, (v, _) => GameHUD.Instance?.SetPlayersAlive(v));
 
         _room.OnMessage<EliminatedMsg>("eliminated", msg => { OnEliminated?.Invoke(msg.sessionId, msg.reason); });
         _room.OnMessage<QualifiedMsg> ("qualified",  msg => { OnQualified?.Invoke(msg.sessionId); });

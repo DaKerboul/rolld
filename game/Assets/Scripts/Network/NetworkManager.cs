@@ -154,7 +154,7 @@ public class NetworkManager : MonoBehaviour
         _callbacks.OnRemove(state => state.players, (key, player) => OnPlayerRemove(key, player));
         _callbacks.Listen(state => state.phase, (v, _) => _OnPhaseChanged(v));
         _callbacks.Listen(state => state.countdown, (v, _) => OnCountdownChanged?.Invoke(v));
-        _callbacks.Listen(state => state.playersAlive, (v, _) => GameHUD.Instance?.SetPlayersAlive(v));
+        _callbacks.Listen(state => state.playersAlive, (newVal, oldVal) => { if (GameHUD.Instance != null) GameHUD.Instance.SetPlayersAlive((int)newVal); });
 
         _room.OnMessage<EliminatedMsg>("eliminated", msg => { OnEliminated?.Invoke(msg.sessionId, msg.reason); });
         _room.OnMessage<QualifiedMsg> ("qualified",  msg => { OnQualified?.Invoke(msg.sessionId); });
@@ -167,8 +167,8 @@ public class NetworkManager : MonoBehaviour
         // Seed players already present in the room (state decoded before callbacks were registered)
         if (_room.State.players != null)
         {
-            foreach (var kvp in _room.State.players)
-                OnPlayerAdd(kvp.Key, kvp.Value);
+            foreach (var key in _room.State.players.Keys)
+                OnPlayerAdd((string)key, (NetworkPlayer)_room.State.players[key]);
         }
 
         OnConnected?.Invoke();

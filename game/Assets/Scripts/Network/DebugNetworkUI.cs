@@ -116,12 +116,12 @@ public class DebugNetworkUI : MonoBehaviour
         if (state != null)
             ImGuiSkin.DrawField("Server Pos", $"({state.x:F1}, {state.y:F1}, {state.z:F1})");
 
-        var pc = FindFirstObjectByType<PlayerController>();
-        if (pc != null && pc.isActiveAndEnabled)
+        var vehicle = FindFirstObjectByType<NWH.VehiclePhysics2.VehicleController>();
+        if (vehicle != null && vehicle.isActiveAndEnabled)
         {
-            var pos = pc.transform.position;
+            var pos = vehicle.transform.position;
             ImGuiSkin.DrawField("Live Pos", $"({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
-            var rb = pc.GetComponent<Rigidbody>();
+            var rb = vehicle.vehicleRigidbody;
             if (rb != null)
             {
                 var v = rb.linearVelocity;

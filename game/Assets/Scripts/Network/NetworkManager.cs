@@ -30,7 +30,7 @@ public class NetworkManager : MonoBehaviour
     public string LastError { get; private set; } = "";
 
     // Expose remote players for debug UI
-    public Dictionary<string, RemotePlayerController> RemotePlayers => _remotePlayers;
+    public Dictionary<string, RemoteVehicleSync> RemotePlayers => _remotePlayers;
 
     // Local player info (set during join)
     public string LocalPlayerName { get; private set; } = "";
@@ -73,7 +73,7 @@ public class NetworkManager : MonoBehaviour
     private Client _client;
     private Room<GameState> _room;
     private StateCallbackStrategy<GameState> _callbacks;
-    private readonly Dictionary<string, RemotePlayerController> _remotePlayers = new();
+    private readonly Dictionary<string, RemoteVehicleSync> _remotePlayers = new();
     private float _broadcastTimer;
     private const float BROADCAST_INTERVAL = 0.01667f; // ~60/sec
     private bool _isJoining;
@@ -270,14 +270,17 @@ public class NetworkManager : MonoBehaviour
 
         {
             Vector3 spawnPos = new Vector3(player.x, player.y, player.z);
-            GameObject remoteBall = remotePlayerPrefab != null
-                ? Instantiate(remotePlayerPrefab, spawnPos, Quaternion.identity)
-                : GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            remoteBall.transform.position = spawnPos;
-            remoteBall.name = $"RemotePlayer_{player.name}_{sessionId[..6]}";
+            if (remotePlayerPrefab == null)
+            {
+                Debug.LogError("[Network] remotePlayerPrefab not assigned — cannot spawn remote vehicle.");
+                return;
+            }
+            GameObject remote = Instantiate(remotePlayerPrefab, spawnPos, Quaternion.identity);
+            remote.transform.position = spawnPos;
+            remote.name = $"RemoteVehicle_{player.name}_{sessionId[..6]}";
 
-            var controller = remoteBall.GetComponent<RemotePlayerController>()
-                          ?? remoteBall.AddComponent<RemotePlayerController>();
+            var controller = remote.GetComponent<RemoteVehicleSync>()
+                          ?? remote.AddComponent<RemoteVehicleSync>();
 
             controller.Initialize(sessionId, player.name,
                 new Color(player.colorR, player.colorG, player.colorB));
@@ -324,20 +327,21 @@ public class NetworkManager : MonoBehaviour
 
     // ─── Position Broadcasting ────────────────────────────────────────────
 
+    /// <summary>
+    /// Called by <see cref="VehicleLocalSetup"/> after the local vehicle is ready.
+    /// Tells us which Rigidbody to broadcast each tick.
+    /// </summary>
+    public void RegisterLocalVehicle(Transform t, Rigidbody rb)
+    {
+        _localPlayer = t;
+        _localPlayerRb = rb;
+        Debug.Log($"[Network] Local vehicle registered: {t?.name}");
+    }
+
     private void BroadcastPosition()
     {
         if (_room == null || !IsConnected) return;
-
-        if (_localPlayer == null)
-        {
-            var pc = FindFirstObjectByType<PlayerController>();
-            if (pc != null)
-            {
-                _localPlayer = pc.transform;
-                _localPlayerRb = pc.GetComponent<Rigidbody>();
-            }
-            else return;
-        }
+        if (_localPlayer == null || _localPlayerRb == null) return;
 
         Vector3 pos = _localPlayer.position;
         Vector3 vel = _localPlayerRb != null ? _localPlayerRb.linearVelocity : Vector3.zero;

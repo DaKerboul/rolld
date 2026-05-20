@@ -31,8 +31,7 @@ public class StatsTracker : MonoBehaviour
     private string  _cachedName = "";
     private float   _lastSentTime = -999f;
 
-    private PlayerController _pc;
-    private Rigidbody        _rb;
+    private Rigidbody _rb;
 
     void Awake()
     {
@@ -42,7 +41,6 @@ public class StatsTracker : MonoBehaviour
 
     void Start()
     {
-        _pc = GetComponent<PlayerController>();
         _rb = GetComponent<Rigidbody>();
 
         var nm = NetworkManager.Instance;

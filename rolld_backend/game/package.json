@@ -4,7 +4,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "schema:gen": "schema-codegen src/schema/GameState.js --csharp --namespace RolldSchema --output ../../game/Assets/Scripts/Network/Generated/"
   },
   "dependencies": {
     "@colyseus/core": "^0.17.39",

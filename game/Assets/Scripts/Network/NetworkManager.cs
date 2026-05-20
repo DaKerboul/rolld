@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using Colyseus;
 using Colyseus.Schema;
+using RolldSchema;
 
 /// <summary>
 /// Singleton managing the Colyseus connection, room lifecycle, remote player spawning,
@@ -70,8 +71,8 @@ public class NetworkManager : MonoBehaviour
 
     // --- Internals ---
     private Client _client;
-    private Room<NetworkState> _room;
-    private StateCallbackStrategy<NetworkState> _callbacks;
+    private Room<GameState> _room;
+    private StateCallbackStrategy<GameState> _callbacks;
     private readonly Dictionary<string, RemotePlayerController> _remotePlayers = new();
     private float _broadcastTimer;
     private const float BROADCAST_INTERVAL = 0.01667f; // ~60/sec
@@ -111,7 +112,7 @@ public class NetworkManager : MonoBehaviour
         }
     }
 
-    public NetworkPlayer GetLocalPlayerState()
+    public Player GetLocalPlayerState()
     {
         if (_room == null || _room.State.players == null || string.IsNullOrEmpty(LocalSessionId)) return null;
         _room.State.players.TryGetValue(LocalSessionId, out var player);
@@ -168,7 +169,7 @@ public class NetworkManager : MonoBehaviour
         if (_room.State.players != null)
         {
             foreach (var key in _room.State.players.Keys)
-                OnPlayerAdd((string)key, (NetworkPlayer)_room.State.players[key]);
+                OnPlayerAdd((string)key, (Player)_room.State.players[key]);
         }
 
         OnConnected?.Invoke();
@@ -190,7 +191,7 @@ public class NetworkManager : MonoBehaviour
         PrepareJoin(playerName, color);
         try
         {
-            _room = await _client.JoinOrCreate<NetworkState>("arena", BuildJoinOptions(playerName, color));
+            _room = await _client.JoinOrCreate<GameState>("arena", BuildJoinOptions(playerName, color));
             FinishJoin();
         }
         catch (Exception e) { HandleJoinError(e); }
@@ -203,7 +204,7 @@ public class NetworkManager : MonoBehaviour
         PrepareJoin(playerName, color);
         try
         {
-            _room = await _client.JoinById<NetworkState>(roomId, BuildJoinOptions(playerName, color));
+            _room = await _client.JoinById<GameState>(roomId, BuildJoinOptions(playerName, color));
             FinishJoin();
         }
         catch (Exception e) { HandleJoinError(e); }
@@ -218,7 +219,7 @@ public class NetworkManager : MonoBehaviour
         {
             var opts = BuildJoinOptions(playerName, color);
             if (roomName != null) opts["roomName"] = roomName;
-            _room = await _client.Create<NetworkState>("arena", opts);
+            _room = await _client.Create<GameState>("arena", opts);
             FinishJoin();
         }
         catch (Exception e) { HandleJoinError(e); }
@@ -259,7 +260,7 @@ public class NetworkManager : MonoBehaviour
         OnPhaseChanged?.Invoke(phase);
     }
 
-    private void OnPlayerAdd(string sessionId, NetworkPlayer player)
+    private void OnPlayerAdd(string sessionId, Player player)
     {
         Debug.Log($"[Network] Player joined: {sessionId} ({player.name})");
         PlayerCount = _room.State.players?.Count ?? 0;
@@ -288,7 +289,7 @@ public class NetworkManager : MonoBehaviour
         OnPlayerJoined?.Invoke(sessionId);
     }
 
-    private void OnPlayerRemove(string sessionId, NetworkPlayer player)
+    private void OnPlayerRemove(string sessionId, Player player)
     {
         Debug.Log($"[Network] Player left: {sessionId}");
         PlayerCount = _room.State.players?.Count ?? 0;
@@ -303,7 +304,7 @@ public class NetworkManager : MonoBehaviour
         OnPlayerLeft?.Invoke(sessionId);
     }
 
-    private void OnPlayerChange(string sessionId, NetworkPlayer player)
+    private void OnPlayerChange(string sessionId, Player player)
     {
         if (sessionId == LocalSessionId) return;
 

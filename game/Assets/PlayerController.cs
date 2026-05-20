@@ -449,6 +449,9 @@ public class PlayerController : MonoBehaviour
     {
         var remote = other.GetComponent<RemotePlayerController>();
         if (remote == null) return;
+        // Ignore bumps during the remote's post-spawn grace window — otherwise
+        // spawn-time overlap with the kinematic remote ball ejects us upward.
+        if (!remote.BumpReady) return;
 
         int id = other.gameObject.GetInstanceID();
         if (_lastBumpTime.TryGetValue(id, out float lastTime) && Time.time - lastTime < bumpCooldown)

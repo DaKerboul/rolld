@@ -23,6 +23,14 @@ frontend/dist/
 build/
 nouveau_build/
 build_mai/
+last_build/
+other_last_build/
+very_last_build/
+pretty_build/
+schema_gen/
+New folder/
+game/connectwebgl.zip
+game/webgl_sharing/
 
 # Exception: frontend unity-build static assets (committed for deployment)
 !frontend/public/unity-build/

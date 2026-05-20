@@ -24,10 +24,16 @@ public class RemotePlayerController : MonoBehaviour
     [Tooltip("Rotation slerp speed")]
     public float rotationSpeed = 24f;
 
+    [Header("Spawn")]
+    [Tooltip("Seconds after spawn during which this remote ignores local bump interactions (avoids upward eject if balls overlap at spawn).")]
+    public float spawnBumpGrace = 1.5f;
+
     // Public info
     public string SessionId { get; private set; }
     public string PlayerName { get; private set; }
     public Color PlayerColor { get; private set; }
+    public float SpawnTime { get; private set; }
+    public bool BumpReady => Time.time - SpawnTime > spawnBumpGrace;
 
     // --- Snapshot buffer ---
     private struct Snapshot
@@ -61,6 +67,7 @@ public class RemotePlayerController : MonoBehaviour
         SessionId = sessionId;
         PlayerName = playerName;
         PlayerColor = color;
+        SpawnTime = Time.time;
         _currentRotation = transform.rotation;
         _bufferCount = 0;
         _initialized = true;
@@ -99,11 +106,16 @@ public class RemotePlayerController : MonoBehaviour
 
         // Add a trigger collider slightly larger than the physics collider
         // so the local player can detect bumps
-        var existingCollider = GetComponent<SphereCollider>();
-        float baseRadius = existingCollider != null ? existingCollider.radius : 0.5f;
+        _solidCollider = GetComponent<SphereCollider>();
+        float baseRadius = _solidCollider != null ? _solidCollider.radius : 0.5f;
         var trigger = gameObject.AddComponent<SphereCollider>();
         trigger.isTrigger = true;
         trigger.radius = baseRadius * 1.15f; // 15% larger
+
+        // During the spawn grace window, disable the SOLID collider so the kinematic
+        // remote can't physically eject an overlapping local player at spawn.
+        // (The trigger stays — bump detection is gated by BumpReady in PlayerController.)
+        if (_solidCollider != null) _solidCollider.enabled = false;
 
         // Disable any player input on remote balls
         var playerInput = GetComponent<UnityEngine.InputSystem.PlayerInput>();
@@ -114,11 +126,15 @@ public class RemotePlayerController : MonoBehaviour
         if (playerController != null)
             playerController.enabled = false;
 
-        // Create floating name label
+        // Create floating name label + speed trail
         CreateNameLabel();
+        CreateTrail(color);
 
         Debug.Log($"[RemotePlayer] Initialized: {playerName} ({sessionId[..6]}) color={color}");
     }
+
+    private SphereCollider _solidCollider;
+    private bool _solidReenabled;
 
     /// <summary>
     /// Called by NetworkManager when a state update arrives from the server.
@@ -149,7 +165,16 @@ public class RemotePlayerController : MonoBehaviour
 
     void Update()
     {
-        if (!_initialized || _bufferCount == 0) return;
+        if (!_initialized) return;
+
+        // Re-enable the solid collider once the grace window has elapsed.
+        if (!_solidReenabled && BumpReady && _solidCollider != null)
+        {
+            _solidCollider.enabled = true;
+            _solidReenabled = true;
+        }
+
+        if (_bufferCount == 0) return;
 
         // Render time = current time minus interpolation delay
         float renderTime = Time.time - interpolationDelay;
@@ -248,14 +273,36 @@ public class RemotePlayerController : MonoBehaviour
             if (cam != null)
             {
                 Vector3 lookDir = cam.transform.position - _nameLabelObj.transform.position;
+                float camDist = lookDir.magnitude;
                 lookDir.y = 0f;
                 if (lookDir.sqrMagnitude > 0.001f)
                     _nameLabelObj.transform.rotation = Quaternion.LookRotation(lookDir);
+
+                // Distance-based scale: keeps the pseudo readable when players are far apart.
+                // Below 8 m → base size; above → grows linearly, capped at 8× to avoid screen takeover.
+                float scaleFactor = Mathf.Clamp(camDist / 8f, 1f, 8f);
+                _nameLabelObj.transform.localScale = Vector3.one * (0.1f * scaleFactor);
             }
         }
     }
 
     private GameObject _nameLabelObj; // Keep reference for billboard update
+
+    private void CreateTrail(Color playerColor)
+    {
+        var trail = GetComponent<TrailRenderer>() ?? gameObject.AddComponent<TrailRenderer>();
+        trail.time = 0.4f;
+        trail.startWidth = 0.3f;
+        trail.endWidth = 0.02f;
+        trail.minVertexDistance = 0.1f;
+        trail.autodestruct = false;
+        trail.emitting = true;
+        trail.material = new Material(Shader.Find("Sprites/Default"));
+        // Use the player's chosen color so each remote has a visually distinct trail
+        // (lobby presets avoid orange, so it never clashes with the local player's orange trail).
+        trail.startColor = new Color(playerColor.r, playerColor.g, playerColor.b, 0.7f);
+        trail.endColor   = new Color(playerColor.r, playerColor.g, playerColor.b, 0f);
+    }
 
     private void CreateNameLabel()
     {

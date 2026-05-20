@@ -2,28 +2,27 @@ const { Room } = require("@colyseus/core");
 const { GameState, Player } = require("../schema/GameState");
 const Chat = require("../chat/ChatManager");
 
-const LOBBY_TIMEOUT = 30;
-const COUNTDOWN_DURATION = 3;
-const ROUND_END_DURATION = 5;
-
-const QUALIFY_RATIO = 0.6;
+// Free-roam: no rounds, no phases, no checkpoints. Players connect, move around, leave.
+// Schema fields (phase, countdown, roundNumber, etc.) are kept to preserve the
+// handshake — but state.phase is pinned to "playing" forever and other fields are
+// left at their default values. To fully drop them, regenerate the C# schema and
+// rebuild WebGL.
 
 class ArenaRoom extends Room {
   maxClients = 20;
 
   onCreate(options) {
     this.setState(new GameState());
+    this.state.phase = "playing"; // pinned: free-roam, no state machine
+    this.state.gameMode = "free";
     this.setPatchRate(16); // ~62.5 Hz
     this.setMetadata({ name: options?.roomName || ('Salle #' + this.roomId.substring(0, 6)) });
 
-    this._phaseTimer = null;
-    this._lobbyTimer = null;
-
-    console.log(`[ArenaRoom] Room ${this.roomId} created`);
+    console.log(`[ArenaRoom] Room ${this.roomId} created (free-roam)`);
 
     this.onMessage("position", (client, data) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.isEliminated) return;
+      if (!player) return;
       player.x = data.x ?? player.x;
       player.y = data.y ?? player.y;
       player.z = data.z ?? player.z;
@@ -40,14 +39,6 @@ class ArenaRoom extends Room {
       player.t = Date.now();
     });
 
-    this.onMessage("ready", (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || this.state.phase !== "lobby") return;
-      player.isReady = true;
-      console.log(`[ArenaRoom] ${client.sessionId} ready`);
-      this._checkAllReady();
-    });
-
     this.onMessage("chat", (client, data) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || !data.text) return;
@@ -55,18 +46,9 @@ class ArenaRoom extends Room {
       if (msg) this.broadcast("chat", msg);
     });
 
-    this.onMessage("checkpointReached", (client, data) => {
-      if (this.state.phase !== "playing") return;
-      const player = this.state.players.get(client.sessionId);
-      if (!player || player.isEliminated || player.isQualified) return;
-      const expected = player.checkpointIndex;
-      if (data.index !== expected) return;
-      player.checkpointIndex = data.index + 1;
-      const TOTAL_CHECKPOINTS = 5;
-      if (player.checkpointIndex >= TOTAL_CHECKPOINTS) {
-        this._qualifyPlayer(client.sessionId, "finish");
-      }
-    });
+    // Accept legacy "ready" / "checkpointReached" silently so old clients don't error.
+    this.onMessage("ready", () => {});
+    this.onMessage("checkpointReached", () => {});
   }
 
   onJoin(client, options) {
@@ -82,199 +64,22 @@ class ArenaRoom extends Room {
     player.z = spawn.z;
     player.t = Date.now();
     this.state.players.set(client.sessionId, player);
-    this._updatePlayersAlive();
-
-    if (this.state.players.size === 1 && this.state.phase === "lobby") {
-      this._startLobbyTimer();
-    }
   }
 
   onLeave(client, consented) {
     console.log(`[ArenaRoom] ${client.sessionId} left`);
     this.state.players.delete(client.sessionId);
-    this._updatePlayersAlive();
-    if (this.state.phase === "playing") {
-      this._checkRoundEndCondition();
-    }
   }
 
   onDispose() {
-    this._clearAllTimers();
     console.log(`[ArenaRoom] Room ${this.roomId} disposed`);
-  }
-
-  // ─── Phase transitions ──────────────────────────────────────────────
-
-  _startLobbyTimer() {
-    if (this._lobbyTimer) return;
-    this._lobbyTimer = setTimeout(() => this._startCountdown(), LOBBY_TIMEOUT * 1000);
-    console.log(`[ArenaRoom] Lobby timer started (${LOBBY_TIMEOUT}s)`);
-  }
-
-  _checkAllReady() {
-    if (this.state.players.size < 2) return;
-    let allReady = true;
-    this.state.players.forEach((p) => { if (!p.isReady) allReady = false; });
-    if (allReady) {
-      clearTimeout(this._lobbyTimer);
-      this._lobbyTimer = null;
-      this._startCountdown();
-    }
-  }
-
-  _startCountdown() {
-    if (this.state.phase !== "lobby") return;
-    this.state.phase = "countdown";
-    this.state.countdown = COUNTDOWN_DURATION;
-    console.log(`[ArenaRoom] Countdown started`);
-
-    const tick = () => {
-      this.state.countdown -= 1;
-      if (this.state.countdown <= 0) {
-        this._startPlaying();
-      } else {
-        this._phaseTimer = setTimeout(tick, 1000);
-      }
-    };
-    this._phaseTimer = setTimeout(tick, 1000);
-  }
-
-  _startPlaying() {
-    this.state.gameMode = "race";
-    this.state.phase = "playing";
-    this.state.countdown = 0;
-
-    this.state.players.forEach((p) => {
-      p.isEliminated = false;
-      p.isQualified = false;
-      p.isReady = false;
-      p.checkpointIndex = 0;
-    });
-
-    this._updatePlayersAlive();
-
-    this.broadcast("roundStart", {
-      round: this.state.roundNumber,
-      mode: this.state.gameMode,
-      totalRounds: this.state.totalRounds,
-    });
-
-    console.log(`[ArenaRoom] Round ${this.state.roundNumber} started (race)`);
-
-  }
-
-  _endRound() {
-    if (this.state.phase !== "playing") return;
-    this._clearAllTimers();
-    this.state.phase = "roundEnd";
-    this.broadcast("roundEnd", { round: this.state.roundNumber });
-    console.log(`[ArenaRoom] Round ${this.state.roundNumber} ended`);
-
-    if (this.state.roundNumber >= this.state.totalRounds) {
-      this._phaseTimer = setTimeout(() => this._endGame(), ROUND_END_DURATION * 1000);
-    } else {
-      this._phaseTimer = setTimeout(() => this._nextRound(), ROUND_END_DURATION * 1000);
-    }
-  }
-
-  _nextRound() {
-    this.state.roundNumber += 1;
-    this.state.phase = "lobby";
-    this.state.players.forEach((p) => {
-      p.isReady = false;
-      const spawn = this._findSpawnPosition();
-      p.x = spawn.x; p.y = spawn.y; p.z = spawn.z;
-    });
-    this._updatePlayersAlive();
-    this._lobbyTimer = null;
-    this._startLobbyTimer();
-    console.log(`[ArenaRoom] Lobby for round ${this.state.roundNumber}`);
-  }
-
-  _endGame() {
-    this.state.phase = "gameEnd";
-    let winner = "";
-    let best = -1;
-    this.state.players.forEach((p) => {
-      const score = p.isQualified ? 1000 : p.checkpointIndex;
-      if (score > best) { best = score; winner = p.name; }
-    });
-    this.state.winnerName = winner;
-    this.broadcast("gameEnd", { winner });
-    console.log(`[ArenaRoom] Game over — winner: ${winner}`);
-  }
-
-  // ─── Elimination helpers ─────────────────────────────────────────────
-
-  _eliminatePlayer(sessionId, reason) {
-    const player = this.state.players.get(sessionId);
-    if (!player || player.isEliminated || player.isQualified) return;
-    player.isEliminated = true;
-    this._updatePlayersAlive();
-    this.broadcast("eliminated", { sessionId, name: player.name, reason });
-    console.log(`[ArenaRoom] ${player.name} (${sessionId}) eliminated: ${reason}`);
-    this._checkRoundEndCondition();
-  }
-
-  _qualifyPlayer(sessionId, reason) {
-    const player = this.state.players.get(sessionId);
-    if (!player || player.isQualified || player.isEliminated) return;
-    player.isQualified = true;
-    this._updatePlayersAlive();
-    this.broadcast("qualified", { sessionId, name: player.name });
-    console.log(`[ArenaRoom] ${player.name} (${sessionId}) qualified: ${reason}`);
-
-    const totalActive = this._getActiveCount();
-    const qualifiedCount = this._getQualifiedCount();
-    const toQualify = Math.ceil(totalActive * QUALIFY_RATIO);
-    if (qualifiedCount >= toQualify) {
-      this.state.players.forEach((p, id) => {
-        if (!p.isQualified && !p.isEliminated) {
-          this._eliminatePlayer(id, "too_slow");
-        }
-      });
-      this._endRound();
-    }
-  }
-
-  _checkRoundEndCondition() {
-    if (this.state.phase !== "playing") return;
-    const alive = this._getAliveCount();
-    if (alive === 0) this._endRound();
-  }
-
-  _getAliveCount() {
-    let n = 0;
-    this.state.players.forEach((p) => { if (!p.isEliminated && !p.isQualified) n++; });
-    return n;
-  }
-
-  _getQualifiedCount() {
-    let n = 0;
-    this.state.players.forEach((p) => { if (p.isQualified) n++; });
-    return n;
-  }
-
-  _getActiveCount() {
-    let n = 0;
-    this.state.players.forEach((p) => { if (!p.isEliminated) n++; });
-    return n;
-  }
-
-  _updatePlayersAlive() {
-    this.state.playersAlive = this._getAliveCount();
-  }
-
-  _clearAllTimers() {
-    if (this._phaseTimer) { clearTimeout(this._phaseTimer); this._phaseTimer = null; }
-    if (this._lobbyTimer) { clearTimeout(this._lobbyTimer); this._lobbyTimer = null; }
   }
 
   // ─── Spawn helper ────────────────────────────────────────────────────
 
   _findSpawnPosition() {
-    const MIN_DIST = 3.0;
-    const SPAWN_Y = 5;
+    const MIN_DIST = 5.0;
+    const SPAWN_Y = 1.5;
     const RANGE = 20;
     const existing = [];
     this.state.players.forEach((p) => existing.push({ x: p.x, z: p.z }));
@@ -285,7 +90,7 @@ class ArenaRoom extends Room {
 
     let best = { x: 0, y: SPAWN_Y, z: 0 };
     let bestDist = 0;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const cx = (Math.random() - 0.5) * RANGE;
       const cz = (Math.random() - 0.5) * RANGE;
       let minD = Infinity;

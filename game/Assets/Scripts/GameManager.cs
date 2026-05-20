@@ -178,8 +178,8 @@ public class GameManager : MonoBehaviour
     {
         if (playerRoot == null) return;
         playerRoot.SetActive(active);
-        var pc = playerRoot.GetComponentInChildren<PlayerController>(true);
-        if (pc != null) pc.enabled = active;
+        var vehicle = playerRoot.GetComponentInChildren<NWH.VehiclePhysics2.VehicleController>(true);
+        if (vehicle != null) vehicle.enabled = active;
 
         if (active)
         {

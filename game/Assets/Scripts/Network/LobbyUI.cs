@@ -118,25 +118,22 @@ public class LobbyUI : MonoBehaviour
         var nm = NetworkManager.Instance;
         if (nm != null && playerRoot != null)
         {
-            var pc = playerRoot.GetComponentInChildren<PlayerController>(true);
-            if (pc != null)
+            var setup = playerRoot.GetComponentInChildren<VehicleLocalSetup>(true);
+            if (setup != null)
             {
+                var vehicle = setup.GetComponent<NWH.VehiclePhysics2.VehicleController>();
+                var rb = vehicle != null ? vehicle.vehicleRigidbody : setup.GetComponent<Rigidbody>();
                 var localState = nm.GetLocalPlayerState();
-                if (localState != null)
+                if (localState != null && rb != null)
                 {
                     Vector3 spawnPos = new Vector3(localState.x, localState.y, localState.z);
-                    var rb = pc.GetComponent<Rigidbody>();
-                    if (rb != null)
-                    {
-                        rb.linearVelocity  = Vector3.zero;
-                        rb.angularVelocity = Vector3.zero;
-                        rb.position = spawnPos;
-                    }
-                    pc.transform.position = spawnPos;
-                    pc.SetSpawnPosition(spawnPos);
+                    rb.linearVelocity  = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                    rb.position = spawnPos;
+                    setup.transform.position = spawnPos;
                 }
-                pc.enabled = true;
-                pc.SetupLocalPlayer(nm.LocalPlayerName, nm.LocalPlayerColor);
+                if (vehicle != null) vehicle.enabled = true;
+                setup.SetupLocal(nm.LocalPlayerName, nm.LocalPlayerColor);
             }
         }
 
@@ -160,8 +157,8 @@ public class LobbyUI : MonoBehaviour
 
         if (playerRoot != null)
         {
-            var pc = playerRoot.GetComponentInChildren<PlayerController>(true);
-            if (pc != null) pc.enabled = false;
+            var vehicle = playerRoot.GetComponentInChildren<NWH.VehiclePhysics2.VehicleController>(true);
+            if (vehicle != null) vehicle.enabled = false;
             playerRoot.SetActive(false);
         }
 

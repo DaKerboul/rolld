@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [editingName, setEditingName] = useState(!localStorage.getItem('rolld_chat_name'))
   const [nameInput, setNameInput] = useState(playerName)
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   const lastTimestampRef = useRef(0)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
@@ -62,17 +63,26 @@ export default function ChatPage() {
     const text = inputText.trim()
     if (!text || !playerName || sending) return
     setSending(true)
+    setSendError('')
     setInputText('')
     try {
-      await fetch(`${SERVER}/chat/send`, {
+      const res = await fetch(`${SERVER}/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: playerName, text }),
       })
-      // Immediately poll to get our own message back
-      await fetchMessages()
+      if (res.status === 429) {
+        setSendError('Trop de messages — attendez un instant.')
+        setInputText(text)
+      } else if (!res.ok) {
+        setSendError('Erreur lors de l\'envoi. Réessayez.')
+        setInputText(text)
+      } else {
+        await fetchMessages()
+      }
     } catch {
-      // ignore
+      setSendError('Serveur inaccessible. Vérifiez votre connexion.')
+      setInputText(text)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -157,6 +167,11 @@ export default function ChatPage() {
           )}
           <div ref={bottomRef} />
         </div>
+
+        {/* Send error */}
+        {sendError && (
+          <p className="mt-2 text-xs text-red-400 px-1">{sendError}</p>
+        )}
 
         {/* Input */}
         <div className="mt-3 flex gap-2 pb-4">

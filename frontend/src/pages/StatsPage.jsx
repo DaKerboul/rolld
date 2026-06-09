@@ -21,10 +21,12 @@ export default function StatsPage() {
   const [activeTab, setActiveTab] = useState(TABS[0].key)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(null)
 
   const fetchLeaderboard = useCallback(async (key) => {
     setLoading(true)
+    setFetchError(false)
     try {
       const res = await fetch(`${SERVER}/stats/leaderboard/${key}`)
       if (!res.ok) throw new Error(res.statusText)
@@ -33,6 +35,7 @@ export default function StatsPage() {
       setLastRefresh(new Date())
     } catch {
       setRows([])
+      setFetchError(true)
     } finally {
       setLoading(false)
     }
@@ -105,6 +108,8 @@ export default function StatsPage() {
 
           {loading && rows.length === 0 ? (
             <div className="py-16 text-center text-rolld-muted text-sm">Chargement…</div>
+          ) : fetchError ? (
+            <div className="py-16 text-center text-red-400 text-sm">Impossible de charger le classement. Vérifiez votre connexion.</div>
           ) : rows.length === 0 ? (
             <div className="py-16 text-center text-rolld-muted text-sm">Aucune donnée pour l'instant.</div>
           ) : (

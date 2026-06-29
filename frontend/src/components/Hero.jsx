@@ -2,7 +2,7 @@ import { IS_DEV, theme } from '../env'
 
 export default function Hero({ onPlay }) {
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+    <section className="relative min-h-screen pt-14 flex flex-col items-center justify-center px-4 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 pointer-events-none">
         {/* Gradient orbs */}

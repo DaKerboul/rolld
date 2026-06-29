@@ -1,0 +1,11 @@
+Model Information:
+* title:	Boeing 747-8i
+* source:	https://sketchfab.com/3d-models/boeing-747-8i-cd1977bedc32412fa1ce2cda23520b84
+* author:	AF267 (https://sketchfab.com/jsong.js.us)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Boeing 747-8i" (https://sketchfab.com/3d-models/boeing-747-8i-cd1977bedc32412fa1ce2cda23520b84) by AF267 (https://sketchfab.com/jsong.js.us) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

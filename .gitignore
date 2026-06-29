@@ -46,3 +46,15 @@ check_wasm.js
 # OS
 .DS_Store
 Thumbs.db
+
+# --- Build & Unity (ajoute pour exclure les artefacts) ---
+/build_ball/
+build_ball/
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+.vs/

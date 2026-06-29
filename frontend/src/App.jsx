@@ -24,13 +24,10 @@ function App() {
 
       {page === 'home' && (
         <>
-          {IS_DEV && <div className="h-8" />}
-          <div className="pt-14">
-            <Hero onPlay={() => setPage('play')} />
-            <GelShowcase />
-            <KerboulistanBanner />
-            <Footer />
-          </div>
+          <Hero onPlay={() => setPage('play')} />
+          <GelShowcase />
+          <KerboulistanBanner />
+          <Footer />
         </>
       )}
 

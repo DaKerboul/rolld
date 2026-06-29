@@ -75,16 +75,20 @@ export default function GelShowcase() {
           <h3 className="text-xl font-semibold text-rolld-text mb-6">Contrôles</h3>
           <div className="flex flex-wrap justify-center gap-6">
             {[
-              { keys: 'ZQSD', label: 'Mouvement' },
+              { keys: '↑ ↓ ← →', label: 'Déplacer la bille' },
+              { keys: 'ZQSD', label: 'Orienter la caméra' },
               { keys: 'ESPACE', label: 'Sauter (maintenir = +force)' },
-              { keys: 'SOURIS', label: 'Caméra' },
+              { keys: 'SOURIS', label: 'Caméra (curseur verrouillé)' },
               { keys: 'CLIC DROIT', label: 'Libérer le curseur' },
+              { keys: 'CLIC GAUCHE', label: 'Verrouiller le curseur' },
+              { keys: 'T', label: 'Chat en jeu' },
+              { keys: 'TAB', label: 'Scores' },
             ].map((control) => (
               <div key={control.keys} className="flex flex-col items-center gap-2">
-                <kbd className="px-3 py-1.5 rounded-lg bg-rolld-bg border border-rolld-border text-rolld-accent-light font-mono text-sm">
+                <kbd className="px-3 py-1.5 rounded-lg bg-rolld-bg border border-rolld-border text-rolld-accent-light font-mono text-sm whitespace-nowrap">
                   {control.keys}
                 </kbd>
-                <span className="text-rolld-muted text-xs">{control.label}</span>
+                <span className="text-rolld-muted text-xs text-center">{control.label}</span>
               </div>
             ))}
           </div>
